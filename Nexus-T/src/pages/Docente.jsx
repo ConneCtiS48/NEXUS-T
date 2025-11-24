@@ -101,8 +101,21 @@ export default function Docente() {
         .order('created_at', { ascending: true })
 
       if (error) {
-        console.error('Error al cargar materias del docente', error)
-        setErrorMessage('No pudimos obtener tus materias asignadas.')
+        console.error('❌ Error al cargar materias del docente:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        })
+        
+        let errorMsg = 'No pudimos obtener tus materias asignadas.'
+        if (error.code === 'PGRST116') {
+          errorMsg = 'Error de permisos. Verifica las políticas RLS en Supabase.'
+        } else if (error.message) {
+          errorMsg = `Error: ${error.message}`
+        }
+        
+        setErrorMessage(errorMsg)
         setSubjects([])
       } else {
         const normalized = (data ?? []).map((entry) => ({
@@ -177,7 +190,12 @@ export default function Docente() {
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('Error al obtener alumnos del grupo', error)
+      console.error('❌ Error al obtener alumnos del grupo:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      })
       throw error
     }
 
@@ -227,7 +245,12 @@ export default function Docente() {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Error al obtener incidentes', error)
+      console.error('❌ Error al obtener incidentes:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      })
       throw error
     }
 

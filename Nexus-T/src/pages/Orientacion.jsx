@@ -83,8 +83,24 @@ export default function Orientacion() {
         .order('nomenclature', { ascending: true })
 
       if (error) {
-        console.error('Error al cargar los grupos', error)
-        setErrorMessage('No pudimos obtener los grupos de la institución.')
+        console.error('❌ Error al cargar los grupos:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        })
+        
+        // Mensajes de error más descriptivos
+        let errorMsg = 'No pudimos obtener los grupos de la institución.'
+        if (error.code === 'PGRST116') {
+          errorMsg = 'Error de permisos. Verifica las políticas RLS en Supabase.'
+        } else if (error.code === '42P01') {
+          errorMsg = 'La tabla "groups" no existe. Verifica el esquema de la base de datos.'
+        } else if (error.message) {
+          errorMsg = `Error: ${error.message}`
+        }
+        
+        setErrorMessage(errorMsg)
         setGroups([])
       } else {
         setGroups(
@@ -152,8 +168,21 @@ export default function Orientacion() {
     const { error } = await supabase.from('groups').insert(payload)
 
     if (error) {
-      console.error('No se pudo crear el grupo', error)
-      setErrorMessage('No se pudo crear el grupo. Verifica la información e intenta de nuevo.')
+      console.error('❌ Error al crear grupo:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      })
+      
+      let errorMsg = 'No se pudo crear el grupo. Verifica la información e intenta de nuevo.'
+      if (error.code === '23505') {
+        errorMsg = 'Ya existe un grupo con esa nomenclatura. Usa un nombre diferente.'
+      } else if (error.message) {
+        errorMsg = `Error: ${error.message}`
+      }
+      
+      setErrorMessage(errorMsg)
     } else {
       setMessage('Grupo creado correctamente.')
       setGroupForm(INITIAL_GROUP_FORM)

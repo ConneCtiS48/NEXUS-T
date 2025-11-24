@@ -4,15 +4,14 @@ export default function Landing() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <div className="max-w-4xl mx-auto p-8 text-center">
+        <img src="/src/assets/img/logo.jpeg" alt="Nexus-T Logo" className="mx-auto mb-6" />
         <h1 className="text-6xl font-bold mb-6 text-gray-900 dark:text-white">
           Bienvenido a Nexus-T
         </h1>
         <p className="text-xl mb-4 text-gray-700 dark:text-gray-300">
-          Plataforma de Tutorías y Gestión Educativa
+          Enlace de Conexión y Seguimiento Tutorial
         </p>
-        <p className="text-lg mb-12 text-gray-600 dark:text-gray-400">
-          Gestiona tutorías, seguimiento de alumnos y comunicación educativa
-        </p>
+        
         
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
           <Link

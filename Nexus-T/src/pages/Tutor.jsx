@@ -122,8 +122,21 @@ export default function Tutor() {
         .maybeSingle()
 
       if (error) {
-        console.error('Error al cargar grupo del tutor', error)
-        setErrorMessage('No pudimos obtener tu grupo asignado.')
+        console.error('❌ Error al cargar grupo del tutor:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        })
+        
+        let errorMsg = 'No pudimos obtener tu grupo asignado.'
+        if (error.code === 'PGRST116') {
+          errorMsg = 'Error de permisos. Verifica las políticas RLS en Supabase.'
+        } else if (error.message) {
+          errorMsg = `Error: ${error.message}`
+        }
+        
+        setErrorMessage(errorMsg)
         setGroup(null)
       } else {
         setGroup(data)
@@ -280,10 +293,15 @@ export default function Tutor() {
       }
 
       setGroupIncidents(data ?? [])
-    } catch (error) {
-      console.error('Error al obtener incidentes del grupo', error)
-      throw error
-    }
+      } catch (error) {
+        console.error('❌ Error al obtener incidentes del grupo:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        })
+        throw error
+      }
   }
 
   const fetchTeacherSubjects = async (groupId) => {

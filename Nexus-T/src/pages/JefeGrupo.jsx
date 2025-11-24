@@ -40,8 +40,21 @@ export default function JefeGrupo() {
         .order('nomenclature', { ascending: true })
 
       if (error) {
-        console.error('Error al cargar grupos del jefe', error)
-        setErrorMessage('No pudimos obtener tus grupos asignados.')
+        console.error('❌ Error al cargar grupos del jefe:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        })
+        
+        let errorMsg = 'No pudimos obtener tus grupos asignados.'
+        if (error.code === 'PGRST116') {
+          errorMsg = 'Error de permisos. Verifica las políticas RLS en Supabase.'
+        } else if (error.message) {
+          errorMsg = `Error: ${error.message}`
+        }
+        
+        setErrorMessage(errorMsg)
         setGroups([])
       } else {
         setGroups(data ?? [])
@@ -133,9 +146,15 @@ export default function JefeGrupo() {
           .in('teacher_subject_id', subjectIds)
           .order('created_at', { ascending: false })
 
-        if (error) {
-          throw error
-        }
+      if (error) {
+        console.error('❌ Error al obtener incidentes del grupo:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+        })
+        throw error
+      }
 
         setIncidents(data ?? [])
       } catch (error) {
