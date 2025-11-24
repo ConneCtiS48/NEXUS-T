@@ -17,6 +17,14 @@ export default function Home() {
     navigate('/orientacion')
   }
 
+  const goToTutor = () => {
+    navigate('/tutor')
+  }
+
+  const goToPadreFamilia = () => {
+    navigate('/padre-familia')
+  }
+
   const handleSignOut = async () => {
     await signOut()
     navigate('/')
@@ -57,7 +65,10 @@ export default function Home() {
             >
               Docente
             </button>
-            <button className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg">
+            <button
+              onClick={goToTutor}
+              className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg"
+            >
               Tutor
             </button>
             <button
@@ -72,7 +83,10 @@ export default function Home() {
             >
               Orientación Educativa
             </button>
-            <button className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg">
+            <button
+              onClick={goToPadreFamilia}
+              className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg"
+            >
               Padre de Familia
             </button>
           </div>

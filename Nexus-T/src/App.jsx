@@ -8,6 +8,8 @@ import Home from './pages/Home'
 import Docente from './pages/Docente'
 import JefeGrupo from './pages/JefeGrupo'
 import Orientacion from './pages/Orientacion'
+import Tutor from './pages/Tutor'
+import PadreFamilia from './pages/PadreFamilia'
 
 function AppRoutes() {
   const { user, loading } = useAuth()
@@ -66,6 +68,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Orientacion />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tutor"
+        element={
+          <ProtectedRoute>
+            <Tutor />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/padre-familia"
+        element={
+          <ProtectedRoute>
+            <PadreFamilia />
           </ProtectedRoute>
         }
       />
