@@ -5,6 +5,18 @@ export default function Home() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
 
+  const goToDocente = () => {
+    navigate('/docente')
+  }
+
+  const goToJefeGrupo = () => {
+    navigate('/jefe-grupo')
+  }
+
+  const goToOrientacion = () => {
+    navigate('/orientacion')
+  }
+
   const handleSignOut = async () => {
     await signOut()
     navigate('/')
@@ -39,16 +51,25 @@ export default function Home() {
             Seleccione su rol para continuar:
           </h2>
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <button className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg">
+            <button
+              onClick={goToDocente}
+              className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg"
+            >
               Docente
             </button>
             <button className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg">
               Tutor
             </button>
-            <button className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg">
+            <button
+              onClick={goToJefeGrupo}
+              className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg"
+            >
               Jefe de Grupo
             </button>
-            <button className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg">
+            <button
+              onClick={goToOrientacion}
+              className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg"
+            >
               Orientación Educativa
             </button>
             <button className="rounded-lg border border-transparent px-6 py-3 text-base font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-md hover:shadow-lg">

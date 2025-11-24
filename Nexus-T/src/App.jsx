@@ -5,6 +5,9 @@ import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
 import Home from './pages/Home'
+import Docente from './pages/Docente'
+import JefeGrupo from './pages/JefeGrupo'
+import Orientacion from './pages/Orientacion'
 
 function AppRoutes() {
   const { user, loading } = useAuth()
@@ -39,6 +42,30 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Home />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/docente"
+        element={
+          <ProtectedRoute>
+            <Docente />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/jefe-grupo"
+        element={
+          <ProtectedRoute>
+            <JefeGrupo />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/orientacion"
+        element={
+          <ProtectedRoute>
+            <Orientacion />
           </ProtectedRoute>
         }
       />
