@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import RoleNavigation from '../components/RoleNavigation'
 
 const INITIAL_INCIDENT_FORM = {
   studentId: '',
@@ -313,8 +314,9 @@ export default function Docente() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 py-10">
-      <div className="max-w-6xl mx-auto px-4 space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+      <RoleNavigation currentRole="docente" />
+      <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
         <header className="flex flex-col gap-2">
           <p className="text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
             Sesión docente

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import RoleNavigation from '../components/RoleNavigation'
 
 const SHIFT_OPTIONS = [
   { value: 'M', label: 'Matutino' },
@@ -65,21 +66,7 @@ export default function Orientacion() {
 
       const { data, error } = await supabase
         .from('groups')
-        .select(
-          `
-            id,
-            grade,
-            specialty,
-            section,
-            nomenclature,
-            tutor_id,
-            tutor:user_profiles!groups_tutor_id_fkey (
-              first_name,
-              last_name,
-              email
-            )
-          `
-        )
+        .select('id, grade, specialty, section, nomenclature, tutor_id')
         .order('nomenclature', { ascending: true })
 
       if (error) {
@@ -103,10 +90,28 @@ export default function Orientacion() {
         setErrorMessage(errorMsg)
         setGroups([])
       } else {
+        // Obtener perfiles de tutores por separado
+        const tutorIds = [...new Set((data ?? []).map((g) => g.tutor_id).filter(Boolean))]
+        const tutorsMap = new Map()
+
+        if (tutorIds.length > 0) {
+          const { data: tutors, error: tutorsError } = await supabase
+            .from('user_profiles')
+            .select('user_id, first_name, last_name, email')
+            .in('user_id', tutorIds)
+
+          if (!tutorsError && tutors) {
+            tutors.forEach((tutor) => {
+              tutorsMap.set(tutor.user_id, tutor)
+            })
+          }
+        }
+
+        // Combinar grupos con sus tutores
         setGroups(
           (data ?? []).map((group) => ({
             ...group,
-            tutor: Array.isArray(group.tutor) ? group.tutor[0] : group.tutor,
+            tutor: group.tutor_id ? tutorsMap.get(group.tutor_id) || null : null,
           }))
         )
       }
@@ -120,28 +125,31 @@ export default function Orientacion() {
   const refreshGroups = async () => {
     const { data, error } = await supabase
       .from('groups')
-      .select(
-        `
-          id,
-          grade,
-          specialty,
-          section,
-          nomenclature,
-          tutor_id,
-          tutor:user_profiles!groups_tutor_id_fkey (
-            first_name,
-            last_name,
-            email
-          )
-        `
-      )
+      .select('id, grade, specialty, section, nomenclature, tutor_id')
       .order('nomenclature', { ascending: true })
 
-    if (!error) {
+    if (!error && data) {
+      // Obtener perfiles de tutores por separado
+      const tutorIds = [...new Set(data.map((g) => g.tutor_id).filter(Boolean))]
+      const tutorsMap = new Map()
+
+      if (tutorIds.length > 0) {
+        const { data: tutors } = await supabase
+          .from('user_profiles')
+          .select('user_id, first_name, last_name, email')
+          .in('user_id', tutorIds)
+
+        if (tutors) {
+          tutors.forEach((tutor) => {
+            tutorsMap.set(tutor.user_id, tutor)
+          })
+        }
+      }
+
       setGroups(
-        (data ?? []).map((group) => ({
+        data.map((group) => ({
           ...group,
-          tutor: Array.isArray(group.tutor) ? group.tutor[0] : group.tutor,
+          tutor: group.tutor_id ? tutorsMap.get(group.tutor_id) || null : null,
         }))
       )
     }
@@ -334,8 +342,9 @@ export default function Orientacion() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 py-10">
-      <div className="max-w-6xl mx-auto px-4 space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+      <RoleNavigation currentRole="orientacion" />
+      <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
         <header className="flex flex-col gap-2">
           <p className="text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
             Orientación educativa

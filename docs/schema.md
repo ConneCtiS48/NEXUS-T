@@ -62,6 +62,140 @@ Este archivo documenta todas las tablas del sistema, sus relaciones y las polít
 - Lectura: Usuarios pueden ver su propio perfil. Orientadores pueden ver todos. Docentes/Tutores pueden ver perfiles de usuarios que no tienen roles de docente/tutor/orientador (principalmente alumnos y jefes de grupo).
 - Escritura: Usuarios pueden actualizar su propio perfil. Orientadores pueden modificar todos.
 
+
+### 4. 
+**Descripción:** 
+
+**Columnas:**
+- `id` (UUID, PK)
+- `user_id` (UUID, FK -> auth.users, UNIQUE) - ON DELETE CASCADE
+- `first_name` (TEXT)
+- `last_name` (TEXT)
+- `email` (TEXT)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+
+**Relaciones:**
+- One-to-One con `auth.users`
+
+**Policies RLS:**
+- Lectura: Usuarios pueden ver su propio perfil. Orientadores pueden ver todos. Docentes/Tutores pueden ver perfiles de usuarios que no tienen roles de docente/tutor/orientador (principalmente alumnos y jefes de grupo).
+- Escritura: Usuarios pueden actualizar su propio perfil. Orientadores pueden modificar todos.
+
+### 5. 
+**Descripción:** 
+
+**Columnas:**
+- `id` (UUID, PK)
+- `user_id` (UUID, FK -> auth.users, UNIQUE) - ON DELETE CASCADE
+- `first_name` (TEXT)
+- `last_name` (TEXT)
+- `email` (TEXT)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+
+**Relaciones:**
+- One-to-One con `auth.users`
+
+**Policies RLS:**
+- Lectura: Usuarios pueden ver su propio perfil. Orientadores pueden ver todos. Docentes/Tutores pueden ver perfiles de usuarios que no tienen roles de docente/tutor/orientador (principalmente alumnos y jefes de grupo).
+- Escritura: Usuarios pueden actualizar su propio perfil. Orientadores pueden modificar todos.
+
+### 6. 
+**Descripción:** 
+
+**Columnas:**
+- `id` (UUID, PK)
+- `user_id` (UUID, FK -> auth.users, UNIQUE) - ON DELETE CASCADE
+- `first_name` (TEXT)
+- `last_name` (TEXT)
+- `email` (TEXT)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+
+**Relaciones:**
+- One-to-One con `auth.users`
+
+**Policies RLS:**
+- Lectura: Usuarios pueden ver su propio perfil. Orientadores pueden ver todos. Docentes/Tutores pueden ver perfiles de usuarios que no tienen roles de docente/tutor/orientador (principalmente alumnos y jefes de grupo).
+- Escritura: Usuarios pueden actualizar su propio perfil. Orientadores pueden modificar todos.
+
+### 7. 
+**Descripción:** 
+
+**Columnas:**
+- `id` (UUID, PK)
+- `user_id` (UUID, FK -> auth.users, UNIQUE) - ON DELETE CASCADE
+- `first_name` (TEXT)
+- `last_name` (TEXT)
+- `email` (TEXT)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+
+**Relaciones:**
+- One-to-One con `auth.users`
+
+**Policies RLS:**
+- Lectura: Usuarios pueden ver su propio perfil. Orientadores pueden ver todos. Docentes/Tutores pueden ver perfiles de usuarios que no tienen roles de docente/tutor/orientador (principalmente alumnos y jefes de grupo).
+- Escritura: Usuarios pueden actualizar su propio perfil. Orientadores pueden modificar todos.
+
+### 8. 
+**Descripción:** 
+
+**Columnas:**
+- `id` (UUID, PK)
+- `user_id` (UUID, FK -> auth.users, UNIQUE) - ON DELETE CASCADE
+- `first_name` (TEXT)
+- `last_name` (TEXT)
+- `email` (TEXT)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+
+**Relaciones:**
+- One-to-One con `auth.users`
+
+**Policies RLS:**
+- Lectura: Usuarios pueden ver su propio perfil. Orientadores pueden ver todos. Docentes/Tutores pueden ver perfiles de usuarios que no tienen roles de docente/tutor/orientador (principalmente alumnos y jefes de grupo).
+- Escritura: Usuarios pueden actualizar su propio perfil. Orientadores pueden modificar todos.
+
+### 9. 
+**Descripción:** 
+
+**Columnas:**
+- `id` (UUID, PK)
+- `user_id` (UUID, FK -> auth.users, UNIQUE) - ON DELETE CASCADE
+- `first_name` (TEXT)
+- `last_name` (TEXT)
+- `email` (TEXT)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+
+**Relaciones:**
+- One-to-One con `auth.users`
+
+**Policies RLS:**
+- Lectura: Usuarios pueden ver su propio perfil. Orientadores pueden ver todos. Docentes/Tutores pueden ver perfiles de usuarios que no tienen roles de docente/tutor/orientador (principalmente alumnos y jefes de grupo).
+- Escritura: Usuarios pueden actualizar su propio perfil. Orientadores pueden modificar todos.
+
+### 10. 
+**Descripción:** 
+
+**Columnas:**
+- `id` (UUID, PK)
+- `user_id` (UUID, FK -> auth.users, UNIQUE) - ON DELETE CASCADE
+- `first_name` (TEXT)
+- `last_name` (TEXT)
+- `email` (TEXT)
+- `created_at` (TIMESTAMPTZ)
+- `updated_at` (TIMESTAMPTZ)
+
+**Relaciones:**
+- One-to-One con `auth.users`
+
+**Policies RLS:**
+- Lectura: Usuarios pueden ver su propio perfil. Orientadores pueden ver todos. Docentes/Tutores pueden ver perfiles de usuarios que no tienen roles de docente/tutor/orientador (principalmente alumnos y jefes de grupo).
+- Escritura: Usuarios pueden actualizar su propio perfil. Orientadores pueden modificar todos.
+
 ---
 
 ## Tablas Futuras

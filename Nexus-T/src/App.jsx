@@ -10,6 +10,7 @@ import JefeGrupo from './pages/JefeGrupo'
 import Orientacion from './pages/Orientacion'
 import Tutor from './pages/Tutor'
 import PadreFamilia from './pages/PadreFamilia'
+import ConnectionTest from './components/ConnectionTest'
 
 function AppRoutes() {
   const { user, loading } = useAuth()
@@ -84,6 +85,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <PadreFamilia />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/test-connection"
+        element={
+          <ProtectedRoute>
+            <ConnectionTest />
           </ProtectedRoute>
         }
       />

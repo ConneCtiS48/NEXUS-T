@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
+import RoleNavigation from '../components/RoleNavigation'
 
 const formatName = (profile) =>
   [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 'Sin nombre'
@@ -60,26 +61,28 @@ export default function PadreFamilia() {
         // Primero obtenemos todos los grupos con sus miembros
         const { data: allGroups, error: groupsError } = await supabase
           .from('groups')
-          .select(
-            `
-            id,
-            grade,
-            specialty,
-            section,
-            nomenclature,
-            tutor_id,
-            tutor:user_profiles!groups_tutor_id_fkey (
-              id,
-              first_name,
-              last_name,
-              email
-            )
-          `
-          )
+          .select('id, grade, specialty, section, nomenclature, tutor_id')
           .order('nomenclature', { ascending: true })
 
         if (groupsError) {
           throw groupsError
+        }
+
+        // Obtener perfiles de tutores por separado
+        const tutorIds = [...new Set((allGroups || []).map((g) => g.tutor_id).filter(Boolean))]
+        const tutorsMap = new Map()
+
+        if (tutorIds.length > 0) {
+          const { data: tutors, error: tutorsError } = await supabase
+            .from('user_profiles')
+            .select('user_id, first_name, last_name, email')
+            .in('user_id', tutorIds)
+
+          if (!tutorsError && tutors) {
+            tutors.forEach((tutor) => {
+              tutorsMap.set(tutor.user_id, tutor)
+            })
+          }
         }
 
         // Para cada grupo, verificar si tiene miembros
@@ -95,7 +98,7 @@ export default function PadreFamilia() {
             return {
               ...group,
               hasMembers: (members || []).length > 0,
-              tutor: Array.isArray(group.tutor) ? group.tutor[0] : group.tutor,
+              tutor: group.tutor_id ? tutorsMap.get(group.tutor_id) || null : null,
             }
           })
         )
@@ -295,8 +298,9 @@ export default function PadreFamilia() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 py-10">
-      <div className="max-w-6xl mx-auto px-4 space-y-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+      <RoleNavigation currentRole="padreFamilia" />
+      <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
         <header className="flex flex-col gap-2">
           <p className="text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
             Sesión padre de familia
