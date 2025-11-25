@@ -9,7 +9,6 @@ import Docente from './pages/Docente'
 import JefeGrupo from './pages/JefeGrupo'
 import Orientacion from './pages/Orientacion'
 import Tutor from './pages/Tutor'
-import PadreFamilia from './pages/PadreFamilia'
 import ConnectionTest from './components/ConnectionTest'
 
 function AppRoutes() {
@@ -77,14 +76,6 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Tutor />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/padre-familia"
-        element={
-          <ProtectedRoute>
-            <PadreFamilia />
           </ProtectedRoute>
         }
       />

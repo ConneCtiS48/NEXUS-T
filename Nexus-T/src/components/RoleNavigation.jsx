@@ -27,9 +27,6 @@ export default function RoleNavigation({ currentRole }) {
     orientacion: [
       { path: '/orientacion', label: 'Orientación Educativa', icon: '🎓' },
     ],
-    padreFamilia: [
-      { path: '/padre-familia', label: 'Mi Sesión Padre de Familia', icon: '👨‍👩‍👧‍👦' },
-    ],
   }
 
   const items = menuItems[currentRole] || []
