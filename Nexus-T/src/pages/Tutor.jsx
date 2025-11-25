@@ -472,17 +472,17 @@ export default function Tutor() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
       <RoleNavigation currentRole="tutor" />
-      <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
         <header className="flex flex-col gap-2">
-          <p className="text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
+          <p className="text-xs sm:text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
             Sesión tutor
           </p>
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
             Gestión de grupo y seguimiento
           </h1>
-          <p className="text-gray-600 dark:text-gray-300">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
             {user?.email ? `Sesión iniciada como ${user.email}` : 'Usuario no identificado'}
           </p>
         </header>
@@ -502,20 +502,20 @@ export default function Tutor() {
         {loading ? (
           <p className="text-gray-500 dark:text-gray-400">Cargando información del grupo...</p>
         ) : !group ? (
-          <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-            <p className="text-gray-500 dark:text-gray-400">
+          <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+            <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
               No tienes un grupo asignado como tutor. Contacta a Orientación Educativa.
             </p>
           </div>
         ) : (
           <>
-            <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6 border border-blue-100 dark:border-slate-800">
-              <div className="flex items-center justify-between flex-wrap gap-4">
+            <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-4 sm:p-6 border border-blue-100 dark:border-slate-800">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+                  <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
                     Grupo: {group.nomenclature}
                   </h2>
-                  <p className="text-gray-500 dark:text-gray-400">
+                  <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
                     {group.grade}° {group.specialty}
                     {group.section ? ` • Sección: ${group.section}` : ''}
                   </p>
@@ -529,11 +529,11 @@ export default function Tutor() {
 
             {/* Tabs */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-              <div className="border-b border-gray-200 dark:border-slate-700">
-                <nav className="flex -mb-px">
+              <div className="border-b border-gray-200 dark:border-slate-700 overflow-x-auto">
+                <nav className="flex -mb-px min-w-max sm:min-w-0">
                   <button
                     onClick={() => setActiveTab('register')}
-                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    className={`px-4 sm:px-6 py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                       activeTab === 'register'
                         ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
@@ -543,7 +543,7 @@ export default function Tutor() {
                   </button>
                   <button
                     onClick={() => setActiveTab('view')}
-                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    className={`px-4 sm:px-6 py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                       activeTab === 'view'
                         ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
@@ -553,7 +553,7 @@ export default function Tutor() {
                   </button>
                   <button
                     onClick={() => setActiveTab('reports')}
-                    className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    className={`px-4 sm:px-6 py-3 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                       activeTab === 'reports'
                         ? 'border-blue-600 text-blue-600 dark:text-blue-400'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
@@ -564,12 +564,12 @@ export default function Tutor() {
                 </nav>
               </div>
 
-              <div className="p-6">
+              <div className="p-4 sm:p-6">
                 {activeTab === 'register' && (
                   <div className="grid gap-6 lg:grid-cols-[1.2fr,1.8fr]">
                     <div className="space-y-6">
-                      <div className="p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
-                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                      <div className="p-4 sm:p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
+                        <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
                           Alumnos del grupo ({groupMembers.length})
                         </h3>
                         {groupMembers.length === 0 ? (
@@ -593,8 +593,8 @@ export default function Tutor() {
                         )}
                       </div>
 
-                      <div className="p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
-                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                      <div className="p-4 sm:p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
+                        <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
                           Registrar incidente
                         </h3>
                         {teacherSubjects.length === 0 ? (
@@ -690,8 +690,8 @@ export default function Tutor() {
                       </div>
                     </div>
 
-                    <div className="p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
-                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
+                      <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
                         Incidentes recientes de la materia seleccionada ({subjectIncidents.length})
                       </h3>
                       {selectedSubject ? (
@@ -758,7 +758,7 @@ export default function Tutor() {
 
                 {activeTab === 'view' && (
                   <div>
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
                       Todos los incidentes del grupo ({groupIncidents.length})
                     </h3>
                     {sectionLoading ? (
@@ -860,13 +860,13 @@ export default function Tutor() {
 
                 {activeTab === 'reports' && (
                   <div>
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
+                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-6">
                       Reportes y Estadísticas del Grupo
                     </h3>
                     {reportStats ? (
-                      <div className="grid gap-6 md:grid-cols-2">
-                        <div className="p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
-                          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                      <div className="grid gap-4 sm:gap-6 md:grid-cols-2">
+                        <div className="p-4 sm:p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
+                          <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">
                             Resumen General
                           </h4>
                           <div className="space-y-2">
@@ -879,8 +879,8 @@ export default function Tutor() {
                           </div>
                         </div>
 
-                        <div className="p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
-                          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                        <div className="p-4 sm:p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
+                          <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">
                             Incidentes por Tipo
                           </h4>
                           <ul className="space-y-2">
@@ -895,8 +895,8 @@ export default function Tutor() {
                           </ul>
                         </div>
 
-                        <div className="p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
-                          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                        <div className="p-4 sm:p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
+                          <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">
                             Alumnos con más Incidentes
                           </h4>
                           <ul className="space-y-2">
@@ -911,8 +911,8 @@ export default function Tutor() {
                           </ul>
                         </div>
 
-                        <div className="p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
-                          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                        <div className="p-4 sm:p-6 bg-gray-50 dark:bg-slate-800 rounded-xl border border-gray-100 dark:border-slate-700">
+                          <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4">
                             Incidentes por Mes
                           </h4>
                           <ul className="space-y-2">

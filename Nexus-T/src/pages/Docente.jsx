@@ -314,17 +314,17 @@ export default function Docente() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
       <RoleNavigation currentRole="docente" />
-      <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
         <header className="flex flex-col gap-2">
-          <p className="text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
+          <p className="text-xs sm:text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
             Sesión docente
           </p>
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
             Gestión de grupos y reportes
           </h1>
-          <p className="text-gray-600 dark:text-gray-300">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
             {user?.email ? `Sesión iniciada como ${user.email}` : 'Usuario no identificado'}
           </p>
         </header>
@@ -335,13 +335,13 @@ export default function Docente() {
           </div>
         )}
 
-        <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6 border border-blue-100 dark:border-slate-800">
+        <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-4 sm:p-6 border border-blue-100 dark:border-slate-800">
           <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+              <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
                 Materias y grupos asignados
               </h2>
-              <p className="text-gray-500 dark:text-gray-400">
+              <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
                 Selecciona un curso para ver a tus alumnos y gestionar los incidentes registrados.
               </p>
             </div>
@@ -390,9 +390,9 @@ export default function Docente() {
 
         {selectedSubject && (
           <section className="space-y-6">
-            <div className="grid gap-6 md:grid-cols-[2fr,1fr]">
-              <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
+              <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
                   Información del grupo
                 </h3>
                 {selectedSubject.group ? (
@@ -418,8 +418,8 @@ export default function Docente() {
                 )}
               </div>
 
-              <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
                   Tutor del grupo
                 </h3>
                 {tutorProfile ? (
@@ -440,8 +440,8 @@ export default function Docente() {
             ) : (
               <div className="grid gap-6 lg:grid-cols-[1.2fr,1.8fr]">
                 <div className="space-y-6">
-                  <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                  <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
                       Alumnos del grupo ({groupMembers.length})
                     </h3>
                     {groupMembers.length === 0 ? (
@@ -465,8 +465,8 @@ export default function Docente() {
                     )}
                   </div>
 
-                  <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                  <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
                       Registrar incidente
                     </h3>
                     <form className="space-y-4" onSubmit={handleIncidentSubmit}>
@@ -540,8 +540,8 @@ export default function Docente() {
                   </div>
                 </div>
 
-                <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
                     Incidentes recientes ({incidents.length})
                   </h3>
                   {incidents.length === 0 ? (

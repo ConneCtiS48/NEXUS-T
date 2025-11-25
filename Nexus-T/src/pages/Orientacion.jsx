@@ -342,17 +342,17 @@ export default function Orientacion() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
       <RoleNavigation currentRole="orientacion" />
-      <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
         <header className="flex flex-col gap-2">
-          <p className="text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
+          <p className="text-xs sm:text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
             Orientación educativa
           </p>
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
             Administración de grupos y usuarios
           </h1>
-          <p className="text-gray-600 dark:text-gray-300">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
             {user?.email ? `Sesión iniciada como ${user.email}` : 'Usuario no identificado'}
           </p>
         </header>
@@ -369,13 +369,13 @@ export default function Orientacion() {
           </div>
         )}
 
-        <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6 border border-blue-100 dark:border-slate-800 space-y-6">
+        <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-4 sm:p-6 border border-blue-100 dark:border-slate-800 space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+              <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
                 Grupos de la institución
               </h2>
-              <p className="text-gray-500 dark:text-gray-400">
+              <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
                 Consulta rápida de la lista de grupos activos y sus tutores asignados.
               </p>
             </div>
@@ -424,8 +424,8 @@ export default function Orientacion() {
         </section>
 
         <section className="grid gap-6 lg:grid-cols-2">
-          <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
               Crear nuevo grupo
             </h3>
             <form className="space-y-4" onSubmit={handleGroupSubmit}>
@@ -474,8 +474,8 @@ export default function Orientacion() {
             </form>
           </div>
 
-          <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
               Registrar alumno y asignarlo a un grupo
             </h3>
             <form className="space-y-4" onSubmit={handleStudentSubmit}>
@@ -539,8 +539,8 @@ export default function Orientacion() {
         </section>
 
         <section className="grid gap-6 lg:grid-cols-2">
-          <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
               Registrar docente o tutor académico
             </h3>
             <form className="space-y-4" onSubmit={handleTeacherSubmit}>
@@ -597,8 +597,8 @@ export default function Orientacion() {
             </form>
           </div>
 
-          <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+          <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
               Asignar tutor de grupo
             </h3>
             <form className="space-y-4" onSubmit={handleTutorSubmit}>

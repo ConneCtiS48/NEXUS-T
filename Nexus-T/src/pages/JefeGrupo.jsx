@@ -171,17 +171,17 @@ export default function JefeGrupo() {
   }, [selectedGroupId])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
+    <div className="min-h-screen w-full bg-gradient-to-br from-blue-50 via-indigo-50 to-indigo-100 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800">
       <RoleNavigation currentRole="jefeGrupo" />
-      <div className="max-w-6xl mx-auto px-4 py-10 space-y-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
         <header className="flex flex-col gap-2">
-          <p className="text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
+          <p className="text-xs sm:text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
             Sesión jefe de grupo
           </p>
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
             Incidentes de mis grupos
           </h1>
-          <p className="text-gray-600 dark:text-gray-300">
+          <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
             {user?.email ? `Sesión iniciada como ${user.email}` : 'Usuario no identificado'}
           </p>
         </header>
@@ -192,13 +192,13 @@ export default function JefeGrupo() {
           </div>
         )}
 
-        <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-6 border border-blue-100 dark:border-slate-800">
+        <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-4 sm:p-6 border border-blue-100 dark:border-slate-800">
           <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
             <div>
-              <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
+              <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
                 Grupos asignados
               </h2>
-              <p className="text-gray-500 dark:text-gray-400">
+              <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
                 Selecciona un grupo para ver los incidentes registrados.
               </p>
             </div>
@@ -245,8 +245,8 @@ export default function JefeGrupo() {
 
         {selectedGroup && (
           <section className="space-y-6">
-            <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+            <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
                 Información del grupo
               </h3>
               <dl className="grid sm:grid-cols-3 gap-4 text-gray-700 dark:text-gray-200">
@@ -269,13 +269,13 @@ export default function JefeGrupo() {
               </dl>
             </div>
 
-            <div className="p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-              <div className="flex items-center justify-between mb-6">
+            <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
                     Incidentes registrados
                   </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
                     Todos los incidentes reportados en las materias de este grupo
                   </p>
                 </div>
