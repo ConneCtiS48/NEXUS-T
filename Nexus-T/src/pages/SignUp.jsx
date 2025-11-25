@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { config } from '../lib/config'
 
 export default function SignUp() {
   const [email, setEmail] = useState('')
@@ -11,6 +12,46 @@ export default function SignUp() {
   const [success, setSuccess] = useState(false)
   const { signUp } = useAuth()
   const navigate = useNavigate()
+
+  // Si el registro está deshabilitado, mostrar mensaje
+  if (!config.allowSignUp) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 px-4 py-8">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 sm:p-8 text-center">
+          <div className="mb-4">
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 dark:bg-yellow-900">
+              <svg
+                className="h-6 w-6 text-yellow-600 dark:text-yellow-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+            </div>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-4 text-gray-900 dark:text-white">
+            Registro Deshabilitado
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            El registro de nuevas cuentas está deshabilitado en este momento. 
+            Por favor, contacta al administrador para obtener acceso.
+          </p>
+          <Link
+            to="/signin"
+            className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Ir a Iniciar Sesión
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()

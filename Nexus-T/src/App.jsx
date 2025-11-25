@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import { config } from './lib/config'
 import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
@@ -37,7 +38,13 @@ function AppRoutes() {
       />
       <Route
         path="/signup"
-        element={user ? <Navigate to="/home" replace /> : <SignUp />}
+        element={
+          config.allowSignUp ? (
+            user ? <Navigate to="/home" replace /> : <SignUp />
+          ) : (
+            <Navigate to="/signin" replace />
+          )
+        }
       />
       <Route
         path="/home"

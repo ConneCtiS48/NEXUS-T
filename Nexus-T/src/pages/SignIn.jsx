@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { config } from '../lib/config'
 
 export default function SignIn() {
   const [email, setEmail] = useState('')
@@ -84,15 +85,17 @@ export default function SignIn() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-          ¿No tienes una cuenta?{' '}
-          <Link
-            to="/signup"
-            className="text-blue-600 hover:text-blue-700 font-medium dark:text-blue-400"
-          >
-            Regístrate aquí
-          </Link>
-        </p>
+        {config.allowSignUp && (
+          <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+            ¿No tienes una cuenta?{' '}
+            <Link
+              to="/signup"
+              className="text-blue-600 hover:text-blue-700 font-medium dark:text-blue-400"
+            >
+              Regístrate aquí
+            </Link>
+          </p>
+        )}
 
         <p className="mt-4 text-center">
           <Link

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { config } from '../lib/config'
 
 export default function Landing() {
   return (
@@ -23,12 +24,14 @@ export default function Landing() {
           >
             Iniciar Sesión
           </Link>
-          <Link
-            to="/signup"
-            className="w-full sm:w-auto rounded-lg px-6 sm:px-8 py-3 text-sm sm:text-base font-medium bg-white text-blue-600 border-2 border-blue-600 hover:bg-blue-50 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-lg hover:shadow-xl dark:bg-gray-800 dark:text-blue-400 dark:border-blue-400 dark:hover:bg-gray-700"
-          >
-            Crear Cuenta
-          </Link>
+          {config.allowSignUp && (
+            <Link
+              to="/signup"
+              className="w-full sm:w-auto rounded-lg px-6 sm:px-8 py-3 text-sm sm:text-base font-medium bg-white text-blue-600 border-2 border-blue-600 hover:bg-blue-50 transition-colors focus:outline-none focus:ring-4 focus:ring-blue-500/50 shadow-lg hover:shadow-xl dark:bg-gray-800 dark:text-blue-400 dark:border-blue-400 dark:hover:bg-gray-700"
+            >
+              Crear Cuenta
+            </Link>
+          )}
         </div>
       </div>
     </div>
