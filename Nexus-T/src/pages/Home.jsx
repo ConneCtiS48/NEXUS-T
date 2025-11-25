@@ -64,25 +64,31 @@ export default function Home() {
         const roleNames = (roles || []).map((r) => r.name).filter(Boolean)
 
         // Prioridad de redirección según roles
-        // 1. Orientación (más privilegiado)
+        // 1. Admin (más privilegiado)
+        if (roleNames.includes('admin')) {
+          navigate('/admin', { replace: true })
+          return
+        }
+
+        // 2. Orientación
         if (roleNames.includes('orientador')) {
           navigate('/orientacion', { replace: true })
           return
         }
 
-        // 2. Tutor
+        // 3. Tutor
         if (roleNames.includes('tutor')) {
           navigate('/tutor', { replace: true })
           return
         }
 
-        // 3. Docente
+        // 4. Docente
         if (roleNames.includes('docente')) {
           navigate('/docente', { replace: true })
           return
         }
 
-        // 4. Jefe de Grupo
+        // 5. Jefe de Grupo
         if (roleNames.includes('jefe_grupo')) {
           navigate('/jefe-grupo', { replace: true })
           return

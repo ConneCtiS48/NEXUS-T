@@ -15,6 +15,9 @@ export default function RoleNavigation({ currentRole }) {
 
   // Menú según el rol
   const menuItems = {
+    admin: [
+      { path: '/admin', label: 'Panel de Administración', icon: '⚙️' },
+    ],
     docente: [
       { path: '/docente', label: 'Mi Sesión Docente', icon: '📚' },
     ],

@@ -10,6 +10,9 @@ import Docente from './pages/Docente'
 import JefeGrupo from './pages/JefeGrupo'
 import Orientacion from './pages/Orientacion'
 import Tutor from './pages/Tutor'
+import AdminLayout from './pages/admin/AdminLayout'
+import AdminDashboard from './pages/admin/AdminDashboard'
+import AdminUsers from './pages/admin/AdminUsers'
 import ConnectionTest from './components/ConnectionTest'
 
 function AppRoutes() {
@@ -86,6 +89,17 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute>
+            <AdminLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<AdminDashboard />} />
+        <Route path="users" element={<AdminUsers />} />
+      </Route>
       <Route
         path="/test-connection"
         element={
