@@ -28,5 +28,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Supabase
+# Other
 supabase
+docs
