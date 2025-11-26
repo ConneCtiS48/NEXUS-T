@@ -32,11 +32,13 @@ export default function Docente() {
   const [subjects, setSubjects] = useState([])
   const [selectedSubjectId, setSelectedSubjectId] = useState(null)
   const [groupMembers, setGroupMembers] = useState([])
+  const [allStudents, setAllStudents] = useState([])
   const [incidentTypes, setIncidentTypes] = useState([])
   const [incidents, setIncidents] = useState([])
   const [tutorProfile, setTutorProfile] = useState(null)
   const [subjectsLoading, setSubjectsLoading] = useState(true)
   const [sectionLoading, setSectionLoading] = useState(false)
+  const [studentsLoading, setStudentsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState(null)
   const [incidentForm, setIncidentForm] = useState(INITIAL_INCIDENT_FORM)
   const [incidentSubmitting, setIncidentSubmitting] = useState(false)
@@ -47,12 +49,20 @@ export default function Docente() {
   )
 
   const studentsOptions = useMemo(
-    () =>
-      groupMembers.map((member) => ({
-        id: member.student?.id,
-        label: formatName(member.student),
-      })),
-    [groupMembers]
+    () => {
+      // Si hay grupo seleccionado, usar alumnos del grupo, sino usar todos los estudiantes
+      const students = selectedSubject && groupMembers.length > 0 
+        ? groupMembers.map((member) => ({
+            id: member.student?.id,
+            label: formatName(member.student),
+          }))
+        : allStudents.map((student) => ({
+            id: student.id,
+            label: formatName(student),
+          }))
+      return students.filter(s => s.id) // Filtrar valores nulos
+    },
+    [groupMembers, allStudents, selectedSubject]
   )
 
   useEffect(() => {
@@ -71,6 +81,100 @@ export default function Docente() {
 
     fetchIncidentTypes()
   }, [])
+
+  // Cargar todos los estudiantes disponibles para el formulario de incidentes
+  useEffect(() => {
+    const fetchAllStudents = async () => {
+      setStudentsLoading(true)
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('id, first_name, last_name, email')
+        .order('first_name')
+
+      if (!error && data) {
+        setAllStudents(data ?? [])
+      } else {
+        console.error('Error al cargar estudiantes', error)
+      }
+      setStudentsLoading(false)
+    }
+
+    fetchAllStudents()
+  }, [])
+
+  // Cargar todos los incidentes del docente (no solo los de un grupo)
+  useEffect(() => {
+    if (!user) return
+
+    const fetchAllIncidents = async () => {
+      // Obtener todos los teacher_subjects del docente
+      const { data: teacherSubjects, error: subjectsError } = await supabase
+        .from('teacher_subjects')
+        .select('id')
+        .eq('teacher_id', user.id)
+
+      if (subjectsError) {
+        console.error('Error al obtener materias del docente', subjectsError)
+        return
+      }
+
+      if (!teacherSubjects || teacherSubjects.length === 0) {
+        setIncidents([])
+        return
+      }
+
+      const subjectIds = teacherSubjects.map((s) => s.id)
+
+      const { data, error } = await supabase
+        .from('incidents')
+        .select(
+          `
+          id,
+          situation,
+          action,
+          follow_up,
+          created_at,
+          incident_types (
+            id,
+            name,
+            code,
+            category
+          ),
+          student:user_profiles!incidents_student_id_fkey (
+            id,
+            first_name,
+            last_name,
+            email
+          ),
+          teacher_subject:teacher_subjects (
+            id,
+            subject_name,
+            shift
+          ),
+          observations:incident_observations (
+            id,
+            comment,
+            created_at,
+            user:user_profiles!incident_observations_user_id_fkey (
+              first_name,
+              last_name,
+              email
+            )
+          )
+        `
+        )
+        .in('teacher_subject_id', subjectIds)
+        .order('created_at', { ascending: false })
+
+      if (!error) {
+        setIncidents(data ?? [])
+      } else {
+        console.error('Error al obtener incidentes', error)
+      }
+    }
+
+    fetchAllIncidents()
+  }, [user])
 
   useEffect(() => {
     if (!user) {
@@ -286,7 +390,10 @@ export default function Docente() {
   const handleIncidentSubmit = async (event) => {
     event.preventDefault()
 
-    if (!selectedSubject) return
+    if (!incidentForm.studentId || !incidentForm.incidentTypeId) {
+      setErrorMessage('Por favor completa todos los campos requeridos.')
+      return
+    }
 
     setIncidentSubmitting(true)
     setErrorMessage(null)
@@ -294,7 +401,7 @@ export default function Docente() {
     const payload = {
       incident_type_id: incidentForm.incidentTypeId,
       student_id: incidentForm.studentId,
-      teacher_subject_id: selectedSubject.id,
+      teacher_subject_id: selectedSubject?.id || null, // Opcional si no hay grupo
       situation: incidentForm.situation,
       action: incidentForm.action,
       follow_up: incidentForm.followUp,
@@ -307,7 +414,36 @@ export default function Docente() {
       setErrorMessage('No se pudo registrar el incidente. Intenta nuevamente.')
     } else {
       setIncidentForm(INITIAL_INCIDENT_FORM)
-      await fetchIncidents(selectedSubject.id)
+      // Recargar incidentes
+      if (selectedSubject) {
+        await fetchIncidents(selectedSubject.id)
+      } else {
+        // Recargar todos los incidentes del docente
+        const { data: teacherSubjects } = await supabase
+          .from('teacher_subjects')
+          .select('id')
+          .eq('teacher_id', user.id)
+        
+        if (teacherSubjects && teacherSubjects.length > 0) {
+          const subjectIds = teacherSubjects.map((s) => s.id)
+          const { data } = await supabase
+            .from('incidents')
+            .select(`
+              id,
+              situation,
+              action,
+              follow_up,
+              created_at,
+              incident_types (id, name, code, category),
+              student:user_profiles!incidents_student_id_fkey (id, first_name, last_name, email),
+              teacher_subject:teacher_subjects (id, subject_name, shift),
+              observations:incident_observations (id, comment, created_at, user:user_profiles!incident_observations_user_id_fkey (first_name, last_name, email))
+            `)
+            .in('teacher_subject_id', subjectIds)
+            .order('created_at', { ascending: false })
+          setIncidents(data ?? [])
+        }
+      }
     }
 
     setIncidentSubmitting(false)
@@ -388,6 +524,7 @@ export default function Docente() {
           )}
         </section>
 
+        {/* Sección de información del grupo (solo si hay grupo seleccionado) */}
         {selectedSubject && (
           <section className="space-y-6">
             <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
@@ -438,169 +575,177 @@ export default function Docente() {
             {sectionLoading ? (
               <p className="text-gray-500 dark:text-gray-400">Preparando la información...</p>
             ) : (
-              <div className="grid gap-6 lg:grid-cols-[1.2fr,1.8fr]">
-                <div className="space-y-6">
-                  <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                      Alumnos del grupo ({groupMembers.length})
-                    </h3>
-                    {groupMembers.length === 0 ? (
-                      <p className="text-gray-500 dark:text-gray-400">Sin alumnos registrados.</p>
-                    ) : (
-                      <ul className="space-y-3 max-h-80 overflow-y-auto pr-1">
-                        {groupMembers.map((member) => (
-                          <li
-                            key={member.id}
-                            className="p-3 rounded-xl border border-gray-100 dark:border-slate-800 bg-gray-50/70 dark:bg-slate-900 flex flex-col"
-                          >
-                            <span className="font-medium text-gray-900 dark:text-white">
-                              {formatName(member.student)}
-                            </span>
-                            <span className="text-sm text-gray-500 dark:text-gray-400">
-                              {member.student?.email}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-
-                  <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                      Registrar incidente
-                    </h3>
-                    <form className="space-y-4" onSubmit={handleIncidentSubmit}>
-                      <select
-                        name="studentId"
-                        value={incidentForm.studentId}
-                        onChange={handleIncidentChange}
-                        required
-                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
+              <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                  Alumnos del grupo ({groupMembers.length})
+                </h3>
+                {groupMembers.length === 0 ? (
+                  <p className="text-gray-500 dark:text-gray-400">Sin alumnos registrados.</p>
+                ) : (
+                  <ul className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                    {groupMembers.map((member) => (
+                      <li
+                        key={member.id}
+                        className="p-3 rounded-xl border border-gray-100 dark:border-slate-800 bg-gray-50/70 dark:bg-slate-900 flex flex-col"
                       >
-                        <option value="">Selecciona un alumno</option>
-                        {studentsOptions.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-
-                      <select
-                        name="incidentTypeId"
-                        value={incidentForm.incidentTypeId}
-                        onChange={handleIncidentChange}
-                        required
-                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                      >
-                        <option value="">Tipo de incidente</option>
-                        {incidentTypes.map((type) => (
-                          <option key={type.id} value={type.id}>
-                            {type.name}
-                          </option>
-                        ))}
-                      </select>
-
-                      <textarea
-                        name="situation"
-                        value={incidentForm.situation}
-                        onChange={handleIncidentChange}
-                        placeholder="Describe la situación observada"
-                        required
-                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                        rows="3"
-                      />
-
-                      <textarea
-                        name="action"
-                        value={incidentForm.action}
-                        onChange={handleIncidentChange}
-                        placeholder="Acción tomada"
-                        required
-                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                        rows="2"
-                      />
-
-                      <textarea
-                        name="followUp"
-                        value={incidentForm.followUp}
-                        onChange={handleIncidentChange}
-                        placeholder="Seguimiento sugerido"
-                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                        rows="2"
-                      />
-
-                      <button
-                        type="submit"
-                        disabled={incidentSubmitting}
-                        className="w-full py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/50 disabled:opacity-50"
-                      >
-                        {incidentSubmitting ? 'Guardando...' : 'Guardar incidente'}
-                      </button>
-                    </form>
-                  </div>
-                </div>
-
-                <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                    Incidentes recientes ({incidents.length})
-                  </h3>
-                  {incidents.length === 0 ? (
-                    <p className="text-gray-500 dark:text-gray-400">Sin registros.</p>
-                  ) : (
-                    <ul className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
-                      {incidents.map((incident) => (
-                        <li
-                          key={incident.id}
-                          className="rounded-xl border border-gray-100 dark:border-slate-800 p-4 bg-gray-50/70 dark:bg-slate-900"
-                        >
-                          <div className="flex justify-between items-start gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
-                                {incident.incident_types?.name}
-                              </p>
-                              <p className="font-medium text-gray-900 dark:text-white">
-                                {formatName(incident.student)}
-                              </p>
-                            </div>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatDate(incident.created_at)}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
-                            {incident.situation}
-                          </p>
-                          <p className="text-sm text-gray-700 dark:text-gray-200 mt-2">
-                            <span className="font-semibold">Acción:</span> {incident.action}
-                          </p>
-                          {incident.follow_up && (
-                            <p className="text-sm text-gray-700 dark:text-gray-200 mt-1">
-                              <span className="font-semibold">Seguimiento:</span> {incident.follow_up}
-                            </p>
-                          )}
-                          {incident.observations?.length > 0 && (
-                            <div className="mt-3 border-t border-gray-100 dark:border-slate-800 pt-2 space-y-2">
-                              {incident.observations.map((observation) => (
-                                <div key={observation.id} className="text-sm text-gray-600 dark:text-gray-300">
-                                  <p className="font-medium">
-                                    {formatName(observation.user)}{' '}
-                                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      {formatDate(observation.created_at)}
-                                    </span>
-                                  </p>
-                                  <p>{observation.comment}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {formatName(member.student)}
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {member.student?.email}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </section>
         )}
+
+        {/* Sección de registro de incidentes - SIEMPRE VISIBLE */}
+        <section className="grid gap-6 lg:grid-cols-[1.2fr,1.8fr]">
+          <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              Registrar incidente
+            </h3>
+            {studentsLoading ? (
+              <p className="text-gray-500 dark:text-gray-400">Cargando estudiantes...</p>
+            ) : (
+              <form className="space-y-4" onSubmit={handleIncidentSubmit}>
+                <select
+                  name="studentId"
+                  value={incidentForm.studentId}
+                  onChange={handleIncidentChange}
+                  required
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
+                >
+                  <option value="">Selecciona un alumno</option>
+                  {studentsOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  name="incidentTypeId"
+                  value={incidentForm.incidentTypeId}
+                  onChange={handleIncidentChange}
+                  required
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
+                >
+                  <option value="">Tipo de incidente</option>
+                  {incidentTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name}
+                    </option>
+                  ))}
+                </select>
+
+                <textarea
+                  name="situation"
+                  value={incidentForm.situation}
+                  onChange={handleIncidentChange}
+                  placeholder="Describe la situación observada"
+                  required
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
+                  rows="3"
+                />
+
+                <textarea
+                  name="action"
+                  value={incidentForm.action}
+                  onChange={handleIncidentChange}
+                  placeholder="Acción tomada"
+                  required
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
+                  rows="2"
+                />
+
+                <textarea
+                  name="followUp"
+                  value={incidentForm.followUp}
+                  onChange={handleIncidentChange}
+                  placeholder="Seguimiento sugerido"
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
+                  rows="2"
+                />
+
+                <button
+                  type="submit"
+                  disabled={incidentSubmitting}
+                  className="w-full py-3 rounded-lg bg-blue-600 text-white font-semibold hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-500/50 disabled:opacity-50"
+                >
+                  {incidentSubmitting ? 'Guardando...' : 'Guardar incidente'}
+                </button>
+              </form>
+            )}
+          </div>
+
+          <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              Incidentes registrados ({incidents.length})
+            </h3>
+            {incidents.length === 0 ? (
+              <p className="text-gray-500 dark:text-gray-400">Sin registros.</p>
+            ) : (
+              <ul className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
+                {incidents.map((incident) => (
+                  <li
+                    key={incident.id}
+                    className="rounded-xl border border-gray-100 dark:border-slate-800 p-4 bg-gray-50/70 dark:bg-slate-900"
+                  >
+                    <div className="flex justify-between items-start gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                          {incident.incident_types?.name}
+                        </p>
+                        <p className="font-medium text-gray-900 dark:text-white">
+                          {formatName(incident.student)}
+                        </p>
+                        {incident.teacher_subject && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {incident.teacher_subject.subject_name}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {formatDate(incident.created_at)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
+                      {incident.situation}
+                    </p>
+                    <p className="text-sm text-gray-700 dark:text-gray-200 mt-2">
+                      <span className="font-semibold">Acción:</span> {incident.action}
+                    </p>
+                    {incident.follow_up && (
+                      <p className="text-sm text-gray-700 dark:text-gray-200 mt-1">
+                        <span className="font-semibold">Seguimiento:</span> {incident.follow_up}
+                      </p>
+                    )}
+                    {incident.observations?.length > 0 && (
+                      <div className="mt-3 border-t border-gray-100 dark:border-slate-800 pt-2 space-y-2">
+                        {incident.observations.map((observation) => (
+                          <div key={observation.id} className="text-sm text-gray-600 dark:text-gray-300">
+                            <p className="font-medium">
+                              {formatName(observation.user)}{' '}
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatDate(observation.created_at)}
+                              </span>
+                            </p>
+                            <p>{observation.comment}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   )
