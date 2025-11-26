@@ -6,7 +6,9 @@ import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
 import Home from './pages/Home'
-import Docente from './pages/Docente'
+import DocenteLayout from './pages/docente/DocenteLayout'
+import DocenteDashboard from './pages/docente/DocenteDashboard'
+import DocenteGrupo from './pages/docente/DocenteGrupo'
 import JefeGrupo from './pages/JefeGrupo'
 import Orientacion from './pages/Orientacion'
 import Tutor from './pages/Tutor'
@@ -63,10 +65,13 @@ function AppRoutes() {
         path="/docente"
         element={
           <ProtectedRoute>
-            <Docente />
+            <DocenteLayout />
           </ProtectedRoute>
         }
-      />
+      >
+        <Route index element={<DocenteDashboard />} />
+        <Route path="grupos" element={<DocenteGrupo />} />
+      </Route>
       <Route
         path="/jefe-grupo"
         element={
