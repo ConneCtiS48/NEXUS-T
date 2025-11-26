@@ -13,6 +13,8 @@ import Tutor from './pages/Tutor'
 import AdminLayout from './pages/admin/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminUsers from './pages/admin/AdminUsers'
+import AdminGroups from './pages/admin/AdminGroups'
+import AdminRoles from './pages/admin/AdminRoles'
 import ConnectionTest from './components/ConnectionTest'
 
 function AppRoutes() {
@@ -99,6 +101,8 @@ function AppRoutes() {
       >
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="groups" element={<AdminGroups />} />
+        <Route path="roles" element={<AdminRoles />} />
       </Route>
       <Route
         path="/test-connection"

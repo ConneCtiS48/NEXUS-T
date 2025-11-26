@@ -8,6 +8,8 @@ export default function AdminLayout() {
   const adminMenuItems = [
     { path: '/admin', label: 'Dashboard', icon: '📊' },
     { path: '/admin/users', label: 'Usuarios', icon: '👥' },
+    { path: '/admin/groups', label: 'Grupos', icon: '👨‍👩‍👧‍👦' },
+    { path: '/admin/roles', label: 'Roles', icon: '🔐' },
   ]
 
   const isActive = (path) => {
