@@ -5,3 +5,4 @@ export const config = {
   allowSignUp: import.meta.env.VITE_ALLOW_SIGNUP === 'true',
 }
 
+

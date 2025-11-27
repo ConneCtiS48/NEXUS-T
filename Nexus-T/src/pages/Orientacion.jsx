@@ -62,6 +62,11 @@ export default function Orientacion() {
   // Estados para justificantes
   const [justificationForm, setJustificationForm] = useState({
     controlNumber: '',
+    groupId: '',
+    grade: '',
+    section: '',
+    specialty: '',
+    shift: 'M',
     reason: '',
     startDate: '',
     endDate: '',
@@ -73,11 +78,11 @@ export default function Orientacion() {
   
   // Estado para el menú/tabs
   const [activeTab, setActiveTab] = useState('grupos')
-  const [justifications, setJustifications] = useState([])
-  const [justificationsLoading, setJustificationsLoading] = useState(false)
+  //const [justifications, setJustifications] = useState([])
+  //const [justificationsLoading, setJustificationsLoading] = useState(false)
   
   // Estado para el menú/tabs
-  const [activeTab, setActiveTab] = useState('grupos')
+  //const [activeTab, setActiveTab] = useState('grupos')
 
   const groupOptions = useMemo(
     () =>
@@ -371,6 +376,11 @@ export default function Orientacion() {
       return
     }
 
+    if (!justificationForm.groupId) {
+      setErrorMessage('Por favor selecciona un grupo')
+      return
+    }
+
     setJustificationSubmitting(true)
     setErrorMessage(null)
     setMessage(null)
@@ -390,6 +400,11 @@ export default function Orientacion() {
 
       const payload = {
         student_id: profiles.id,
+        group_id: justificationForm.groupId || null,
+        grade: justificationForm.grade || null,
+        section: justificationForm.section || null,
+        specialty: justificationForm.specialty || null,
+        shift: justificationForm.shift,
         reason: justificationForm.reason,
         start_date: justificationForm.startDate,
         end_date: justificationForm.endDate,
@@ -406,6 +421,11 @@ export default function Orientacion() {
       setMessage('Justificante generado correctamente.')
       setJustificationForm({
         controlNumber: '',
+        groupId: '',
+        grade: '',
+        section: '',
+        specialty: '',
+        shift: 'M',
         reason: '',
         startDate: '',
         endDate: '',
@@ -826,245 +846,10 @@ export default function Orientacion() {
                         {submitting ? 'Guardando...' : 'Registrar alumno'}
                       </button>
                     </form>
-          </div>
-
-          <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Registrar alumno y asignarlo a un grupo
-            </h3>
-            <form className="space-y-4" onSubmit={handleStudentSubmit}>
-              <input
-                name="userId"
-                value={studentForm.userId}
-                onChange={handleInputChange(setStudentForm)}
-                placeholder="ID del usuario en Supabase (auth.users)"
-                required
-                className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-              />
-              <div className="grid sm:grid-cols-2 gap-4">
-                <input
-                  name="firstName"
-                  value={studentForm.firstName}
-                  onChange={handleInputChange(setStudentForm)}
-                  placeholder="Nombre(s)"
-                  required
-                  className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                />
-                <input
-                  name="lastName"
-                  value={studentForm.lastName}
-                  onChange={handleInputChange(setStudentForm)}
-                  placeholder="Apellidos"
-                  required
-                  className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                />
-              </div>
-              <input
-                name="email"
-                type="email"
-                value={studentForm.email}
-                onChange={handleInputChange(setStudentForm)}
-                placeholder="Correo institucional"
-                required
-                className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-              />
-              <select
-                name="groupId"
-                value={studentForm.groupId}
-                onChange={handleInputChange(setStudentForm)}
-                className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-              >
-                <option value="">Asignar a un grupo (opcional)</option>
-                {groupOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-3 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-500/50 disabled:opacity-50"
-              >
-                {submitting ? 'Guardando...' : 'Registrar alumno'}
-              </button>
-            </form>
-          </div>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-2">
-          <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Registrar docente o tutor académico
-            </h3>
-            <form className="space-y-4" onSubmit={handleTeacherSubmit}>
-              <input
-                name="teacherUserId"
-                value={teacherForm.teacherUserId}
-                onChange={handleInputChange(setTeacherForm)}
-                placeholder="ID del usuario (docente) en Supabase"
-                required
-                className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-              />
-              <input
-                name="subjectName"
-                value={teacherForm.subjectName}
-                onChange={handleInputChange(setTeacherForm)}
-                placeholder="Nombre de la materia"
-                required
-                className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-              />
-              <select
-                name="shift"
-                value={teacherForm.shift}
-                onChange={handleInputChange(setTeacherForm)}
-                className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                required
-              >
-                {SHIFT_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <select
-                name="groupId"
-                value={teacherForm.groupId}
-                onChange={handleInputChange(setTeacherForm)}
-                required
-                className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-              >
-                <option value="">Selecciona un grupo</option>
-                {groupOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-3 rounded-lg bg-indigo-600 text-white font-semibold hover:bg-indigo-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/50 disabled:opacity-50"
-              >
-                {submitting ? 'Guardando...' : 'Registrar docente / materia'}
-              </button>
-            </form>
-          </div>
-
-          <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-            <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Asignar tutor de grupo
-            </h3>
-            <form className="space-y-4" onSubmit={handleTutorSubmit}>
-              <select
-                name="groupId"
-                value={tutorForm.groupId}
-                onChange={handleInputChange(setTutorForm)}
-                required
-                className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-              >
-                <option value="">Selecciona un grupo</option>
-                {groupOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <input
-                name="tutorUserId"
-                value={tutorForm.tutorUserId}
-                onChange={handleInputChange(setTutorForm)}
-                placeholder="ID del usuario que fungirá como tutor"
-                required
-                className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-              />
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-3 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-500/50 disabled:opacity-50"
-              >
-                {submitting ? 'Guardando...' : 'Asignar tutor'}
-              </button>
-            </form>
-          </div>
-        </section>
-
-            )}
-
-            {/* Tab: Asignación/Registro */}
-            {activeTab === 'asignacion' && (
-              <div className="space-y-6">
-                <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
-                  Asignación y Registro
-                </h2>
-                <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
-                  Registra y asigna alumnos, docentes y tutores a grupos.
-                </p>
-
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                      Registrar alumno y asignarlo a un grupo
-                    </h3>
-                    <form className="space-y-4" onSubmit={handleStudentSubmit}>
-                      <input
-                        name="userId"
-                        value={studentForm.userId}
-                        onChange={handleInputChange(setStudentForm)}
-                        placeholder="ID del usuario en Supabase (auth.users)"
-                        required
-                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                      />
-                      <div className="grid sm:grid-cols-2 gap-4">
-                        <input
-                          name="firstName"
-                          value={studentForm.firstName}
-                          onChange={handleInputChange(setStudentForm)}
-                          placeholder="Nombre(s)"
-                          required
-                          className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                        />
-                        <input
-                          name="lastName"
-                          value={studentForm.lastName}
-                          onChange={handleInputChange(setStudentForm)}
-                          placeholder="Apellidos"
-                          required
-                          className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                        />
-                      </div>
-                      <input
-                        name="email"
-                        type="email"
-                        value={studentForm.email}
-                        onChange={handleInputChange(setStudentForm)}
-                        placeholder="Correo institucional"
-                        required
-                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                      />
-                      <select
-                        name="groupId"
-                        value={studentForm.groupId}
-                        onChange={handleInputChange(setStudentForm)}
-                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                      >
-                        <option value="">Asignar a un grupo (opcional)</option>
-                        {groupOptions.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="submit"
-                        disabled={submitting}
-                        className="w-full py-3 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-500/50 disabled:opacity-50"
-                      >
-                        {submitting ? 'Guardando...' : 'Registrar alumno'}
-                      </button>
-                    </form>
                   </div>
+                </div>
 
+                <section className="grid gap-6 lg:grid-cols-2">
                   <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
                     <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
                       Registrar docente o tutor académico
@@ -1122,44 +907,44 @@ export default function Orientacion() {
                       </button>
                     </form>
                   </div>
-                </div>
 
-                <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
-                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                    Asignar tutor de grupo
-                  </h3>
-                  <form className="space-y-4" onSubmit={handleTutorSubmit}>
-                    <select
-                      name="groupId"
-                      value={tutorForm.groupId}
-                      onChange={handleInputChange(setTutorForm)}
-                      required
-                      className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                    >
-                      <option value="">Selecciona un grupo</option>
-                      {groupOptions.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      name="tutorUserId"
-                      value={tutorForm.tutorUserId}
-                      onChange={handleInputChange(setTutorForm)}
-                      placeholder="ID del usuario que fungirá como tutor"
-                      required
-                      className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
-                    />
-                    <button
-                      type="submit"
-                      disabled={submitting}
-                      className="w-full py-3 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-500/50 disabled:opacity-50"
-                    >
-                      {submitting ? 'Guardando...' : 'Asignar tutor'}
-                    </button>
-                  </form>
-                </div>
+                  <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
+                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                      Asignar tutor de grupo
+                    </h3>
+                    <form className="space-y-4" onSubmit={handleTutorSubmit}>
+                      <select
+                        name="groupId"
+                        value={tutorForm.groupId}
+                        onChange={handleInputChange(setTutorForm)}
+                        required
+                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
+                      >
+                        <option value="">Selecciona un grupo</option>
+                        {groupOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        name="tutorUserId"
+                        value={tutorForm.tutorUserId}
+                        onChange={handleInputChange(setTutorForm)}
+                        placeholder="ID del usuario que fungirá como tutor"
+                        required
+                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
+                      />
+                      <button
+                        type="submit"
+                        disabled={submitting}
+                        className="w-full py-3 rounded-lg bg-amber-600 text-white font-semibold hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-500/50 disabled:opacity-50"
+                      >
+                        {submitting ? 'Guardando...' : 'Asignar tutor'}
+                      </button>
+                    </form>
+                  </div>
+                </section>
               </div>
             )}
 
@@ -1337,6 +1122,90 @@ export default function Orientacion() {
                     required
                     className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
                   />
+
+                  <select
+                    name="groupId"
+                    value={justificationForm.groupId}
+                    onChange={(e) => {
+                      const selectedGroupId = e.target.value
+                      const selectedGroup = groups.find((g) => g.id === selectedGroupId)
+                      setJustificationForm((prev) => ({
+                        ...prev,
+                        groupId: selectedGroupId,
+                        grade: selectedGroup?.grade || '',
+                        section: selectedGroup?.section || '',
+                        specialty: selectedGroup?.specialty || '',
+                      }))
+                    }}
+                    required
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
+                  >
+                    <option value="">Selecciona un grupo</option>
+                    {groupOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Grado
+                      </label>
+                      <input
+                        type="text"
+                        value={justificationForm.grade}
+                        readOnly
+                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white cursor-not-allowed"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Sección
+                      </label>
+                      <input
+                        type="text"
+                        value={justificationForm.section || 'Sin sección'}
+                        readOnly
+                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Especialidad
+                      </label>
+                      <input
+                        type="text"
+                        value={justificationForm.specialty}
+                        readOnly
+                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 px-3 py-2 text-gray-900 dark:text-white cursor-not-allowed"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Turno
+                      </label>
+                      <select
+                        name="shift"
+                        value={justificationForm.shift}
+                        onChange={(e) =>
+                          setJustificationForm((prev) => ({ ...prev, shift: e.target.value }))
+                        }
+                        required
+                        className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-gray-900 dark:text-white"
+                      >
+                        {SHIFT_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
 
                   <input
                     type="text"
