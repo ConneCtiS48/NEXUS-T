@@ -10,6 +10,8 @@ const INITIAL_FORM = {
   first_name: '',
   last_name: '',
   role_id: '',
+  selectedGroups: [], // Array de objetos {groupId, shift} para grupos seleccionados
+  tutorGroupId: '', // ID del grupo donde es tutor
 }
 
 export default function AdminUsers() {
@@ -44,6 +46,7 @@ export default function AdminUsers() {
   useEffect(() => {
     fetchUsers()
     fetchRoles()
+    fetchAllGroups()
   }, [])
 
   useEffect(() => {
@@ -266,6 +269,51 @@ export default function AdminUsers() {
         }
       }
 
+      // Asignar grupos como docente si hay grupos seleccionados
+      if (formData.selectedGroups && formData.selectedGroups.length > 0 && userId) {
+        // Verificar si el usuario tiene rol de docente
+        const docenteRole = roles.find((r) => r.name?.toLowerCase() === 'docente')
+        if (docenteRole && formData.role_id === docenteRole.id) {
+          // Por cada grupo seleccionado, crear una entrada en teacher_subjects
+          for (const groupData of formData.selectedGroups) {
+            // Verificar si ya existe la relación
+            const { data: existing } = await supabase
+              .from('teacher_subjects')
+              .select('id')
+              .eq('teacher_id', userId)
+              .eq('group_id', groupData.groupId)
+              .maybeSingle()
+
+            if (!existing) {
+              const { error: teacherError } = await supabase
+                .from('teacher_subjects')
+                .insert({
+                  teacher_id: userId,
+                  group_id: groupData.groupId,
+                  subject_name: 'Materia por asignar', // Se puede editar después
+                  shift: groupData.shift || 'M',
+                })
+
+              if (teacherError && !teacherError.message.includes('duplicate')) {
+                console.warn(`No se pudo asignar grupo ${groupData.groupId} como docente:`, teacherError)
+              }
+            }
+          }
+        }
+      }
+
+      // Asignar grupo como tutor si está seleccionado
+      if (formData.tutorGroupId && userId) {
+        const { error: tutorError } = await supabase
+          .from('groups')
+          .update({ tutor_id: userId })
+          .eq('id', formData.tutorGroupId)
+
+        if (tutorError) {
+          console.warn('No se pudo asignar como tutor:', tutorError)
+        }
+      }
+
       setSuccessMessage('Usuario creado/actualizado correctamente.')
       setFormData(INITIAL_FORM)
       await fetchUsers()
@@ -285,15 +333,47 @@ export default function AdminUsers() {
     }
   }
 
-  const handleEdit = (id) => {
+  const handleEdit = async (id) => {
     const user = users.find((u) => u.id === id)
     if (user) {
       setEditingId(id)
+      
+      // Cargar grupos del docente si tiene rol de docente
+      let userGroups = []
+      const docenteRole = roles.find((r) => r.name?.toLowerCase() === 'docente')
+      if (docenteRole && user.role_id === docenteRole.id) {
+        const { data: teacherSubjects } = await supabase
+          .from('teacher_subjects')
+          .select('group_id, shift')
+          .eq('teacher_id', user.user_id)
+        
+        if (teacherSubjects) {
+          userGroups = teacherSubjects.map((ts) => ({
+            groupId: ts.group_id,
+            shift: ts.shift || 'M',
+          }))
+        }
+      }
+      
+      // Cargar grupo de tutor
+      let tutorGroupId = ''
+      const { data: tutorGroup } = await supabase
+        .from('groups')
+        .select('id')
+        .eq('tutor_id', user.user_id)
+        .maybeSingle()
+      
+      if (tutorGroup) {
+        tutorGroupId = tutorGroup.id
+      }
+      
       setEditingData({
         first_name: user.first_name,
         last_name: user.last_name,
         email: user.email,
         role_id: user.role_id || '',
+        selectedGroups: userGroups,
+        tutorGroupId: tutorGroupId,
       })
     }
   }
@@ -324,6 +404,7 @@ export default function AdminUsers() {
 
       if (updateError) throw updateError
 
+      // Actualizar rol si cambió
       if (editingData.role_id && editingData.role_id !== user.role_id) {
         if (user.role_id) {
           await supabase
@@ -341,6 +422,59 @@ export default function AdminUsers() {
           })
 
         if (roleError) throw roleError
+      }
+
+      // Actualizar grupos como docente
+      const docenteRole = roles.find((r) => r.name?.toLowerCase() === 'docente')
+      if (docenteRole && editingData.role_id === docenteRole.id) {
+        // Eliminar todas las asignaciones actuales de docente
+        await supabase
+          .from('teacher_subjects')
+          .delete()
+          .eq('teacher_id', user.user_id)
+
+        // Agregar las nuevas asignaciones
+        if (editingData.selectedGroups && editingData.selectedGroups.length > 0) {
+          for (const groupData of editingData.selectedGroups) {
+            const { error: teacherError } = await supabase
+              .from('teacher_subjects')
+              .insert({
+                teacher_id: user.user_id,
+                group_id: groupData.groupId,
+                subject_name: 'Materia por asignar',
+                shift: groupData.shift || 'M',
+              })
+
+            if (teacherError && !teacherError.message.includes('duplicate')) {
+              console.warn(`No se pudo asignar grupo ${groupData.groupId}:`, teacherError)
+            }
+          }
+        }
+      } else {
+        // Si no es docente, eliminar todas las asignaciones
+        await supabase
+          .from('teacher_subjects')
+          .delete()
+          .eq('teacher_id', user.user_id)
+      }
+
+      // Actualizar grupo como tutor
+      // Primero eliminar tutor de todos los grupos
+      await supabase
+        .from('groups')
+        .update({ tutor_id: null })
+        .eq('tutor_id', user.user_id)
+
+      // Asignar nuevo grupo como tutor si está seleccionado
+      if (editingData.tutorGroupId) {
+        const { error: tutorError } = await supabase
+          .from('groups')
+          .update({ tutor_id: user.user_id })
+          .eq('id', editingData.tutorGroupId)
+
+        if (tutorError) {
+          console.warn('No se pudo asignar como tutor:', tutorError)
+        }
       }
 
       setSuccessMessage('Usuario actualizado correctamente.')
@@ -1148,6 +1282,125 @@ export default function AdminUsers() {
                 />
               </tbody>
             </table>
+            
+            {/* Sección de Grupos y Tutor - Solo visible para roles Docente o Tutor */}
+            {(formData.role_id && (() => {
+              const selectedRole = roles.find((r) => r.id === formData.role_id)
+              const roleName = selectedRole?.name?.toLowerCase() || ''
+              return roleName === 'docente' || roleName === 'tutor'
+            })()) && (
+              <div className="p-4 border-t border-gray-200 dark:border-slate-700 space-y-4">
+                {/* Solo mostrar grupos si es Docente */}
+                {(() => {
+                  const selectedRole = roles.find((r) => r.id === formData.role_id)
+                  const roleName = selectedRole?.name?.toLowerCase() || ''
+                  return roleName === 'docente' && (
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                        Asignar Grupos como Docente
+                      </h3>
+                      <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-3">
+                        {allGroups.length === 0 ? (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">No hay grupos disponibles</p>
+                        ) : (
+                          allGroups.map((group) => {
+                            const isSelected = formData.selectedGroups?.some((g) => g.groupId === group.id) || false
+                            const selectedGroupData = formData.selectedGroups?.find((g) => g.groupId === group.id)
+                            
+                            return (
+                              <div
+                                key={group.id}
+                                className={`p-3 border rounded-lg ${
+                                  isSelected
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
+                                    : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                                }`}
+                              >
+                                <label className="flex items-center space-x-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={(e) => {
+                                      const isChecked = e.target.checked
+                                      setFormData((prev) => {
+                                        const currentGroups = prev.selectedGroups || []
+                                        if (isChecked) {
+                                          return {
+                                            ...prev,
+                                            selectedGroups: [...currentGroups, { groupId: group.id, shift: 'M' }],
+                                          }
+                                        } else {
+                                          return {
+                                            ...prev,
+                                            selectedGroups: currentGroups.filter((g) => g.groupId !== group.id),
+                                          }
+                                        }
+                                      })
+                                    }}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">
+                                    {group.nomenclature} - {group.grade}° {group.specialty}
+                                    {group.section && ` • ${group.section}`}
+                                  </span>
+                                </label>
+                                
+                                {isSelected && (
+                                  <div className="mt-2 ml-6">
+                                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                      Turno:
+                                    </label>
+                                    <select
+                                      value={selectedGroupData?.shift || 'M'}
+                                      onChange={(e) => {
+                                        setFormData((prev) => ({
+                                          ...prev,
+                                          selectedGroups: (prev.selectedGroups || []).map((g) =>
+                                            g.groupId === group.id ? { ...g, shift: e.target.value } : g
+                                          ),
+                                        }))
+                                      }}
+                                      className="w-full rounded border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-sm text-gray-900 dark:text-white"
+                                    >
+                                      <option value="M">Matutino</option>
+                                      <option value="V">Vespertino</option>
+                                    </select>
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                    Asignar como Tutor de Grupo
+                  </h3>
+                  <select
+                    value={formData.tutorGroupId || ''}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, tutorGroupId: e.target.value }))
+                    }
+                    className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                  >
+                    <option value="">Seleccionar grupo (opcional)</option>
+                    {allGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.nomenclature} - {group.grade}° {group.specialty}
+                        {group.section && ` • ${group.section}`}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Selecciona un grupo si este usuario será tutor de ese grupo
+                  </p>
+                </div>
+              </div>
+            )}
           </form>
         </section>
       </div>
@@ -1167,15 +1420,205 @@ export default function AdminUsers() {
                 <p className="text-gray-500 dark:text-gray-400">Cargando usuarios...</p>
               </div>
             ) : (
-              <SelectableTable
-                columns={tableColumns}
-                data={users}
-                selectedId={selectedUserId ? users.find((u) => u.user_id === selectedUserId)?.id : null}
-                onSelect={handleSelect}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                loading={submitting}
-              />
+              <>
+                <SelectableTable
+                  columns={tableColumns}
+                  data={users}
+                  selectedId={selectedUserId ? users.find((u) => u.user_id === selectedUserId)?.id : null}
+                  onSelect={handleSelect}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  loading={submitting}
+                />
+                
+                {/* Sección de Edición */}
+                {editingId && (
+                  <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
+                      Editando Usuario
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Nombre
+                          </label>
+                          <input
+                            type="text"
+                            value={editingData.first_name || ''}
+                            onChange={(e) => handleEditFieldChange(editingId, 'first_name', e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Apellidos
+                          </label>
+                          <input
+                            type="text"
+                            value={editingData.last_name || ''}
+                            onChange={(e) => handleEditFieldChange(editingId, 'last_name', e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Email
+                          </label>
+                          <input
+                            type="email"
+                            value={editingData.email || ''}
+                            onChange={(e) => handleEditFieldChange(editingId, 'email', e.target.value)}
+                            className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                          Rol
+                        </label>
+                        <select
+                          value={editingData.role_id || ''}
+                          onChange={(e) => handleEditFieldChange(editingId, 'role_id', e.target.value)}
+                          className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                        >
+                          <option value="">Sin rol</option>
+                          {roles.map((role) => (
+                            <option key={role.id} value={role.id}>
+                              {role.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Sección de Grupos y Tutor - Solo visible para roles Docente o Tutor */}
+                      {editingData.role_id && (() => {
+                        const selectedRole = roles.find((r) => r.id === editingData.role_id)
+                        const roleName = selectedRole?.name?.toLowerCase() || ''
+                        return roleName === 'docente' || roleName === 'tutor'
+                      })() && (
+                        <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-slate-700">
+                          {/* Solo mostrar grupos si es Docente */}
+                          {(() => {
+                            const selectedRole = roles.find((r) => r.id === editingData.role_id)
+                            const roleName = selectedRole?.name?.toLowerCase() || ''
+                            return roleName === 'docente' && (
+                              <div>
+                                <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                  Grupos como Docente
+                                </h4>
+                                <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-3">
+                                  {allGroups.length === 0 ? (
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">No hay grupos disponibles</p>
+                                  ) : (
+                                    allGroups.map((group) => {
+                                      const isSelected = editingData.selectedGroups?.some((g) => g.groupId === group.id) || false
+                                      const selectedGroupData = editingData.selectedGroups?.find((g) => g.groupId === group.id)
+                                      
+                                      return (
+                                        <div
+                                          key={group.id}
+                                          className={`p-3 border rounded-lg ${
+                                            isSelected
+                                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
+                                              : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                                          }`}
+                                        >
+                                          <label className="flex items-center space-x-2 cursor-pointer">
+                                            <input
+                                              type="checkbox"
+                                              checked={isSelected}
+                                              onChange={(e) => {
+                                                const isChecked = e.target.checked
+                                                const currentGroups = editingData.selectedGroups || []
+                                                if (isChecked) {
+                                                  handleEditFieldChange(editingId, 'selectedGroups', [
+                                                    ...currentGroups,
+                                                    { groupId: group.id, shift: 'M' },
+                                                  ])
+                                                } else {
+                                                  handleEditFieldChange(editingId, 'selectedGroups', currentGroups.filter((g) => g.groupId !== group.id))
+                                                }
+                                              }}
+                                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">
+                                              {group.nomenclature} - {group.grade}° {group.specialty}
+                                              {group.section && ` • ${group.section}`}
+                                            </span>
+                                          </label>
+                                          
+                                          {isSelected && (
+                                            <div className="mt-2 ml-6">
+                                              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                                Turno:
+                                              </label>
+                                              <select
+                                                value={selectedGroupData?.shift || 'M'}
+                                                onChange={(e) => {
+                                                  const updatedGroups = (editingData.selectedGroups || []).map((g) =>
+                                                    g.groupId === group.id ? { ...g, shift: e.target.value } : g
+                                                  )
+                                                  handleEditFieldChange(editingId, 'selectedGroups', updatedGroups)
+                                                }}
+                                                className="w-full rounded border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-sm text-gray-900 dark:text-white"
+                                              >
+                                                <option value="M">Matutino</option>
+                                                <option value="V">Vespertino</option>
+                                              </select>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })()}
+
+                          <div>
+                            <h4 className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-3">
+                              Grupo como Tutor
+                            </h4>
+                            <select
+                              value={editingData.tutorGroupId || ''}
+                              onChange={(e) => handleEditFieldChange(editingId, 'tutorGroupId', e.target.value)}
+                              className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                            >
+                              <option value="">Seleccionar grupo (opcional)</option>
+                              {allGroups.map((group) => (
+                                <option key={group.id} value={group.id}>
+                                  {group.nomenclature} - {group.grade}° {group.specialty}
+                                  {group.section && ` • ${group.section}`}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          onClick={() => handleSave(editingId)}
+                          disabled={submitting}
+                          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {submitting ? 'Guardando...' : 'Guardar'}
+                        </button>
+                        <button
+                          onClick={handleCancel}
+                          disabled={submitting}
+                          className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
