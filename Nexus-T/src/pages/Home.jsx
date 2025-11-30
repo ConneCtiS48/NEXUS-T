@@ -88,12 +88,6 @@ export default function Home() {
           return
         }
 
-        // 5. Jefe de Grupo
-        if (roleNames.includes('jefe_grupo')) {
-          navigate('/jefe-grupo', { replace: true })
-          return
-        }
-
         // 5. Si no tiene ningún rol específico reconocido, mostrar error
         if (isMounted) {
           setError(`No se pudo determinar tu rol. Roles encontrados: ${roleNames.join(', ')}. Por favor, contacta a Orientación Educativa.`)

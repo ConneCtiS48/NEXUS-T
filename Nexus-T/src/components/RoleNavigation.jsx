@@ -24,9 +24,6 @@ export default function RoleNavigation({ currentRole }) {
     tutor: [
       { path: '/tutor', label: 'Mi Sesión Tutor', icon: '👨‍🏫' },
     ],
-    jefeGrupo: [
-      { path: '/jefe-grupo', label: 'Mi Sesión Jefe de Grupo', icon: '👔' },
-    ],
     orientacion: [
       { path: '/orientacion', label: 'Orientación Educativa', icon: '🎓' },
     ],
