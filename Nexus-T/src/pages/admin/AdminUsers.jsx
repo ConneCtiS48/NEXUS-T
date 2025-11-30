@@ -1,18 +1,17 @@
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
-import CrudFormRow from '../../components/admin/CrudFormRow'
 import SimpleTable from '../../components/data/SimpleTable'
-import ActionMenu from '../../components/data/ActionMenu'
 import DetailView from '../../components/data/DetailView'
-import CsvImporter from '../../components/data/CsvImporter'
-import PageHeader from '../../components/layout/PageHeader'
-import Section from '../../components/layout/Section'
-import Alert from '../../components/base/Alert'
+import ActionMenu from '../../components/data/ActionMenu'
 import Modal from '../../components/base/Modal'
 import Input from '../../components/forms/Input'
 import Select from '../../components/forms/Select'
 import FormField from '../../components/forms/FormField'
 import FormRow from '../../components/forms/FormRow'
+import PageHeader from '../../components/layout/PageHeader'
+import Alert from '../../components/base/Alert'
+import Section from '../../components/layout/Section'
+import CsvImporter from '../../components/data/CsvImporter'
 
 const INITIAL_FORM = {
   email: '',
@@ -35,35 +34,73 @@ export default function AdminUsers() {
   const [roleUsers, setRoleUsers] = useState([])
   const [editingId, setEditingId] = useState(null)
   const [editingData, setEditingData] = useState({})
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
   const [activeTab, setActiveTab] = useState('overview')
+  const initialEditingDataRef = useRef(null) // Para detectar cambios no guardados
+  const initialFormDataRef = useRef(JSON.stringify(INITIAL_FORM))
+  const hasFormChanges = useRef(false)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
   // Estados para importación CSV
-  // Estados para importación CSV (ahora manejados por CsvImporter)
   const [importResults, setImportResults] = useState(null)
   // Estados para gestión de docentes/tutores
   const [teacherGroups, setTeacherGroups] = useState([])
+  const [teacherGroupsFromTeacherGroups, setTeacherGroupsFromTeacherGroups] = useState([])
   const [tutorGroup, setTutorGroup] = useState(null)
+  const [tutorGroups, setTutorGroups] = useState([]) // Todos los grupos donde es tutor
   const [allGroups, setAllGroups] = useState([])
+  const [groupsWithTutors, setGroupsWithTutors] = useState(new Set()) // Set de group_ids que tienen tutor
   const [showTeacherManagement, setShowTeacherManagement] = useState(null)
   const [teacherForm, setTeacherForm] = useState({ groupId: '', subjectName: '', shift: 'matutino' })
-  // Estados para modales
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [showImportModal, setShowImportModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  // Referencias para detectar cambios
-  const initialFormDataRef = useRef(JSON.stringify(INITIAL_FORM))
-  const hasFormChanges = useRef(false)
-  const initialEditingDataRef = useRef(null)
-  const hasEditingChanges = useRef(false)
 
   useEffect(() => {
     fetchUsers()
     fetchRoles()
     fetchAllGroups()
   }, [])
+
+  // Función helper para obtener o crear un subject
+  const getOrCreateSubjectId = async (subjectName = 'Materia por asignar') => {
+    try {
+      const { data: existing, error: findError } = await supabase
+        .from('subjects')
+        .select('id')
+        .eq('subject_name', subjectName)
+        .maybeSingle()
+
+      if (findError && findError.code !== 'PGRST116') {
+        console.error('Error al buscar subject:', findError)
+      }
+
+      if (existing) {
+        return existing.id
+      }
+
+      const { data: newSubject, error: createError } = await supabase
+        .from('subjects')
+        .insert({
+          subject_name: subjectName,
+          category_type: 'General',
+          category_name: 'General',
+        })
+        .select('id')
+        .single()
+
+      if (createError) {
+        console.error('Error al crear subject:', createError)
+        throw createError
+      }
+
+      return newSubject.id
+    } catch (error) {
+      console.error('Error en getOrCreateSubjectId:', error)
+      throw error
+    }
+  }
 
   useEffect(() => {
     if (selectedUserId) {
@@ -215,7 +252,7 @@ export default function AdminUsers() {
   }
 
   const handleCloseImportModal = (confirmClose) => {
-    // Para importar, verificar si hay archivo seleccionado o preview
+    // Para importar, verificar si hay resultados
     if (importResults) {
       if (window.confirm('¿Estás seguro de que deseas cerrar? Se perderán los resultados de la importación.')) {
         setImportResults(null)
@@ -232,6 +269,153 @@ export default function AdminUsers() {
     hasFormChanges.current = false
     initialFormDataRef.current = JSON.stringify(INITIAL_FORM)
     setShowCreateModal(true)
+  }
+
+  // Funciones para CSV import
+  const validateCsvRow = (row, index) => {
+    const errors = []
+    if (!row.email || !row.email.trim()) {
+      errors.push('Email es requerido')
+    }
+    if (!row.password || row.password.length < 6) {
+      errors.push('Contraseña debe tener al menos 6 caracteres')
+    }
+    if (!row.first_name || !row.first_name.trim()) {
+      errors.push('Nombre es requerido')
+    }
+    if (!row.last_name || !row.last_name.trim()) {
+      errors.push('Apellido es requerido')
+    }
+    return errors.length === 0 ? null : errors.join(', ')
+  }
+
+  const handleCsvImport = async (rows) => {
+    setSubmitting(true)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+    setImportResults(null)
+
+    const results = {
+      success: [],
+      errors: [],
+      skipped: [],
+    }
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]
+      try {
+        // Validar fila
+        const validationError = validateCsvRow(row, i + 1)
+        if (validationError) {
+          results.errors.push({
+            row: i + 1,
+            email: row.email || 'N/A',
+            error: validationError,
+          })
+          continue
+        }
+
+        // Verificar si el usuario ya existe
+        const { data: existingProfile } = await supabase
+          .from('user_profiles')
+          .select('id, user_id')
+          .eq('email', row.email.trim())
+          .maybeSingle()
+
+        if (existingProfile) {
+          results.skipped.push({
+            row: i + 1,
+            email: row.email,
+            reason: 'Usuario ya existe',
+          })
+          continue
+        }
+
+        // Crear usuario
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email: row.email.trim(),
+          password: row.password,
+        })
+
+        if (authError) {
+          if (authError.message.includes('already registered')) {
+            results.skipped.push({
+              row: i + 1,
+              email: row.email,
+              reason: 'Usuario ya existe en auth',
+            })
+          } else {
+            results.errors.push({
+              row: i + 1,
+              email: row.email,
+              error: authError.message,
+            })
+          }
+          continue
+        }
+
+        if (!authData.user) {
+          results.errors.push({
+            row: i + 1,
+            email: row.email,
+            error: 'No se pudo crear el usuario en auth',
+          })
+          continue
+        }
+
+        // Crear perfil
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .insert({
+            user_id: authData.user.id,
+            first_name: row.first_name.trim(),
+            last_name: row.last_name.trim(),
+            email: row.email.trim(),
+          })
+
+        if (profileError) {
+          results.errors.push({
+            row: i + 1,
+            email: row.email,
+            error: profileError.message,
+          })
+          continue
+        }
+
+        // Asignar rol si se especificó
+        if (row.role && row.role.trim()) {
+          const role = roles.find((r) => r.name.toLowerCase() === row.role.trim().toLowerCase())
+          if (role) {
+            await supabase
+              .from('user_roles')
+              .insert({
+                user_id: authData.user.id,
+                role_id: role.id,
+              })
+          }
+        }
+
+        results.success.push({
+          row: i + 1,
+          email: row.email,
+        })
+      } catch (error) {
+        results.errors.push({
+          row: i + 1,
+          email: row.email || 'N/A',
+          error: error.message || 'Error desconocido',
+        })
+      }
+    }
+
+    setImportResults(results)
+    setSuccessMessage(`Importación completada: ${results.success.length} exitosos, ${results.errors.length} errores, ${results.skipped.length} omitidos`)
+    
+    if (results.success.length > 0) {
+      await fetchUsers()
+    }
+
+    setSubmitting(false)
   }
 
   const handleCreate = async (e) => {
@@ -330,29 +514,36 @@ export default function AdminUsers() {
         // Verificar si el usuario tiene rol de docente
         const docenteRole = roles.find((r) => r.name?.toLowerCase() === 'docente')
         if (docenteRole && formData.role_id === docenteRole.id) {
-          // Por cada grupo seleccionado, crear una entrada en teacher_subjects
+          // Por cada grupo seleccionado, crear una entrada en teacher_groups
           for (const groupData of formData.selectedGroups) {
-            // Verificar si ya existe la relación
-            const { data: existing } = await supabase
-              .from('teacher_subjects')
-              .select('id')
-              .eq('teacher_id', userId)
-              .eq('group_id', groupData.groupId)
-              .maybeSingle()
+            try {
+              // Verificar si ya existe la relación (como docente o tutor)
+              const { data: existing } = await supabase
+                .from('teacher_groups')
+                .select('id, is_tutor')
+                .eq('teacher_id', userId)
+                .eq('group_id', groupData.groupId)
+                .maybeSingle()
 
-            if (!existing) {
-              const { error: teacherError } = await supabase
-                .from('teacher_subjects')
-                .insert({
-                  teacher_id: userId,
-                  group_id: groupData.groupId,
-                  subject_name: 'Materia por asignar', // Se puede editar después
-                  shift: groupData.shift || 'M',
-                })
+              if (!existing) {
+                // Insertar como docente (is_tutor = false)
+                const { error: teacherError } = await supabase
+                  .from('teacher_groups')
+                  .insert({
+                    teacher_id: userId,
+                    group_id: groupData.groupId,
+                    is_tutor: false,
+                  })
 
-              if (teacherError && !teacherError.message.includes('duplicate')) {
-                console.warn(`No se pudo asignar grupo ${groupData.groupId} como docente:`, teacherError)
+                if (teacherError && !teacherError.message.includes('duplicate')) {
+                  console.warn(`No se pudo asignar grupo ${groupData.groupId} como docente:`, teacherError)
+                }
+              } else if (existing.is_tutor) {
+                // Si ya existe como tutor, mantener is_tutor=true (no cambiar)
+                // El docente puede ser tutor del mismo grupo
               }
+            } catch (error) {
+              console.error(`Error al asignar grupo ${groupData.groupId}:`, error)
             }
           }
         }
@@ -360,13 +551,41 @@ export default function AdminUsers() {
 
       // Asignar grupo como tutor si está seleccionado
       if (formData.tutorGroupId && userId) {
-        const { error: tutorError } = await supabase
-          .from('groups')
-          .update({ tutor_id: userId })
-          .eq('id', formData.tutorGroupId)
+        try {
+          // Verificar si ya existe la relación
+          const { data: existing } = await supabase
+            .from('teacher_groups')
+            .select('id, is_tutor')
+            .eq('teacher_id', userId)
+            .eq('group_id', formData.tutorGroupId)
+            .maybeSingle()
 
-        if (tutorError) {
-          console.warn('No se pudo asignar como tutor:', tutorError)
+          if (existing) {
+            // Si ya existe, actualizar is_tutor a true
+            const { error: tutorError } = await supabase
+              .from('teacher_groups')
+              .update({ is_tutor: true })
+              .eq('id', existing.id)
+
+            if (tutorError) {
+              console.warn('No se pudo asignar como tutor:', tutorError)
+            }
+          } else {
+            // Si no existe, insertar con is_tutor = true
+            const { error: tutorError } = await supabase
+              .from('teacher_groups')
+              .insert({
+                teacher_id: userId,
+                group_id: formData.tutorGroupId,
+                is_tutor: true,
+              })
+
+            if (tutorError) {
+              console.warn('No se pudo asignar como tutor:', tutorError)
+            }
+          }
+        } catch (error) {
+          console.error('Error al asignar como tutor:', error)
         }
       }
 
@@ -384,117 +603,124 @@ export default function AdminUsers() {
     }
   }
 
-  const handleSelect = (id) => {
+  const handleSelect = async (id) => {
     const user = users.find((u) => u.id === id)
     if (user) {
       setSelectedUserId(user.user_id)
       setActiveTab('overview')
+      
+      // Cargar grupos del docente si tiene rol de docente
+      const hasDocenteRole = user.roles?.some((r) => r.role_name?.toLowerCase() === 'docente')
+      if (hasDocenteRole) {
+        try {
+          await Promise.all([
+            fetchTeacherGroupsFromTeacherGroups(user.user_id), // Desde teacher_groups (sin materias)
+            fetchTutorGroup(user.user_id),
+            fetchTutorGroups(user.user_id), // Todos los grupos donde es tutor
+          ])
+        } catch (error) {
+          console.error('Error al cargar grupos del docente:', error)
+        }
+      } else {
+        // Limpiar estados si no es docente
+        setTeacherGroups([])
+        setTeacherGroupsFromTeacherGroups([])
+        setTutorGroup(null)
+        setTutorGroups([])
+      }
     }
   }
 
   const handleEdit = async (id) => {
     const user = users.find((u) => u.id === id)
-    if (user) {
-      setEditingId(id)
-      
-      // Cargar grupos del docente - verificar en ambas tablas por compatibilidad
-      let userGroups = []
-      try {
-        // Intentar primero con teacher_group_subjects (tabla nueva)
-        const { data: teacherGroupSubjects, error: error1 } = await supabase
-          .from('teacher_group_subjects')
-          .select('group_id, shift')
-          .eq('teacher_id', user.user_id)
-        
-        if (!error1 && teacherGroupSubjects && teacherGroupSubjects.length > 0) {
-          userGroups = teacherGroupSubjects.map((tgs) => ({
-            groupId: tgs.group_id,
-            shift: tgs.shift || 'M',
-          }))
-        } else {
-          // Fallback a teacher_subjects (tabla antigua) si existe
-          const { data: teacherSubjects, error: error2 } = await supabase
-            .from('teacher_subjects')
-            .select('group_id, shift')
-            .eq('teacher_id', user.user_id)
-          
-          if (!error2 && teacherSubjects) {
-            userGroups = teacherSubjects.map((ts) => ({
-              groupId: ts.group_id,
-              shift: ts.shift || 'M',
-            }))
-          }
-        }
-      } catch (error) {
-        console.error('Error al cargar grupos del docente:', error)
-      }
-      
-      // Cargar grupo de tutor
-      let tutorGroupId = ''
-      try {
-        const { data: tutorGroup, error: tutorError } = await supabase
-          .from('groups')
-          .select('id')
-          .eq('tutor_id', user.user_id)
-          .maybeSingle()
-        
-        if (!tutorError && tutorGroup) {
-          tutorGroupId = tutorGroup.id
-        }
-      } catch (error) {
-        console.error('Error al cargar grupo de tutor:', error)
-      }
-      
-      const editingDataObj = {
-        first_name: user.first_name,
-        last_name: user.last_name,
-        email: user.email,
-        role_id: user.role_id || '',
-        selectedGroups: userGroups,
-        tutorGroupId: tutorGroupId,
-      }
-      
-      // Debug: Log para verificar datos cargados
-      console.log('Datos cargados para edición:', {
-        userGroups,
-        tutorGroupId,
-        editingDataObj,
-      })
-      
-      setEditingData(editingDataObj)
-      initialEditingDataRef.current = JSON.stringify(editingDataObj)
-      hasEditingChanges.current = false
-      setShowEditModal(true)
+    if (!user) {
+      setErrorMessage('Usuario no encontrado')
+      return
     }
+    
+    setEditingId(id)
+    
+    // Inicializar con datos básicos del usuario
+    const editData = {
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      email: user.email || '',
+      role_id: user.role_id || '',
+      selectedGroups: [],
+      tutorGroupId: '',
+    }
+    
+    // Cargar grupos del docente desde teacher_groups (sin materias)
+    const docenteRole = roles.find((r) => r.name?.toLowerCase() === 'docente')
+    if (docenteRole && user.role_id === docenteRole.id) {
+      const { data: teacherGroups } = await supabase
+        .from('teacher_groups')
+        .select('group_id')
+        .eq('teacher_id', user.user_id)
+        .eq('is_tutor', false)
+      
+      if (teacherGroups && teacherGroups.length > 0) {
+        // Normalizar groupId a string para consistencia
+        editData.selectedGroups = teacherGroups.map((tg) => ({
+          groupId: String(tg.group_id), // Convertir a string
+          shift: 'M',
+        }))
+      }
+      
+      // También cargar grupos desde teacher_group_subjects (con materias)
+      const { data: teacherGroupSubjects } = await supabase
+        .from('teacher_group_subjects')
+        .select('group_id, shift')
+        .eq('teacher_id', user.user_id)
+      
+      if (teacherGroupSubjects && teacherGroupSubjects.length > 0) {
+        const existingGroupIds = new Set(editData.selectedGroups.map(g => g.groupId))
+        teacherGroupSubjects.forEach((tgs) => {
+          const groupIdStr = String(tgs.group_id)
+          if (!existingGroupIds.has(groupIdStr)) {
+            editData.selectedGroups.push({
+              groupId: groupIdStr, // Convertir a string
+              shift: tgs.shift || 'M',
+            })
+          }
+        })
+      }
+    }
+    
+    // Cargar grupo de tutor
+    const { data: tutorGroup } = await supabase
+      .from('teacher_groups')
+      .select('group_id')
+      .eq('teacher_id', user.user_id)
+      .eq('is_tutor', true)
+      .maybeSingle()
+    
+    if (tutorGroup) {
+      editData.tutorGroupId = String(tutorGroup.group_id) // Convertir a string
+    }
+    
+    // Actualizar estado solo después de cargar todos los datos
+    setEditingData(editData)
+    initialEditingDataRef.current = JSON.stringify(editData)
+    setShowEditModal(true)
+  }
+
+  const handleCloseEditModal = () => {
+    const hasChanges = initialEditingDataRef.current !== JSON.stringify(editingData)
+    if (hasChanges) {
+      if (!confirm('¿Estás seguro de que deseas cerrar? Los cambios no guardados se perderán.')) {
+        return
+      }
+    }
+    setShowEditModal(false)
+    setEditingId(null)
+    setEditingData({})
+    initialEditingDataRef.current = null
   }
 
   const handleEditFieldChange = (id, field, value) => {
     if (editingId === id) {
-      setEditingData((prev) => {
-        const newData = { ...prev, [field]: value }
-        // Detectar cambios comparando con el estado inicial
-        const currentDataStr = JSON.stringify(newData)
-        hasEditingChanges.current = currentDataStr !== initialEditingDataRef.current
-        return newData
-      })
-    }
-  }
-
-  // Función para verificar cambios antes de cerrar modal de edición
-  const handleCloseEditModal = (confirmClose) => {
-    if (hasEditingChanges.current) {
-      if (window.confirm('¿Estás seguro de que deseas cancelar? Se perderán los cambios no guardados.')) {
-        setEditingId(null)
-        setEditingData({})
-        hasEditingChanges.current = false
-        initialEditingDataRef.current = null
-        confirmClose()
-      }
-    } else {
-      setEditingId(null)
-      setEditingData({})
-      initialEditingDataRef.current = null
-      confirmClose()
+      setEditingData((prev) => ({ ...prev, [field]: value }))
     }
   }
 
@@ -541,62 +767,113 @@ export default function AdminUsers() {
       // Actualizar grupos como docente
       const docenteRole = roles.find((r) => r.name?.toLowerCase() === 'docente')
       if (docenteRole && editingData.role_id === docenteRole.id) {
-        // Eliminar todas las asignaciones actuales de docente
+        // Eliminar todas las asignaciones actuales de docente (solo donde is_tutor = false)
         await supabase
-          .from('teacher_subjects')
+          .from('teacher_groups')
           .delete()
           .eq('teacher_id', user.user_id)
+          .eq('is_tutor', false)
 
-        // Agregar las nuevas asignaciones
+        // Agregar las nuevas asignaciones como docente
         if (editingData.selectedGroups && editingData.selectedGroups.length > 0) {
           for (const groupData of editingData.selectedGroups) {
-            const { error: teacherError } = await supabase
-              .from('teacher_subjects')
-              .insert({
-                teacher_id: user.user_id,
-                group_id: groupData.groupId,
-                subject_name: 'Materia por asignar',
-                shift: groupData.shift || 'M',
-              })
+            try {
+              // Convertir groupId a número para Supabase
+              const groupIdNum = typeof groupData.groupId === 'string' ? parseInt(groupData.groupId, 10) : groupData.groupId
+              
+              // Verificar si ya existe como tutor
+              const { data: existing } = await supabase
+                .from('teacher_groups')
+                .select('id, is_tutor')
+                .eq('teacher_id', user.user_id)
+                .eq('group_id', groupIdNum)
+                .maybeSingle()
 
-            if (teacherError && !teacherError.message.includes('duplicate')) {
-              console.warn(`No se pudo asignar grupo ${groupData.groupId}:`, teacherError)
+              if (!existing) {
+                // Insertar como docente
+                const { error: teacherError } = await supabase
+                  .from('teacher_groups')
+                  .insert({
+                    teacher_id: user.user_id,
+                    group_id: groupIdNum,
+                    is_tutor: false,
+                  })
+
+                if (teacherError && !teacherError.message.includes('duplicate')) {
+                  console.warn(`No se pudo asignar grupo ${groupData.groupId}:`, teacherError)
+                }
+              }
+              // Si ya existe como tutor, no hacer nada (mantener is_tutor = true)
+            } catch (error) {
+              console.error(`Error al asignar grupo ${groupData.groupId}:`, error)
             }
           }
         }
       } else {
-        // Si no es docente, eliminar todas las asignaciones
+        // Si no es docente, eliminar todas las asignaciones como docente (mantener tutor si existe)
         await supabase
-          .from('teacher_subjects')
+          .from('teacher_groups')
           .delete()
           .eq('teacher_id', user.user_id)
+          .eq('is_tutor', false)
       }
 
       // Actualizar grupo como tutor
-      // Primero eliminar tutor de todos los grupos
+      // Primero eliminar tutor de todos los grupos (poner is_tutor = false o eliminar)
       await supabase
-        .from('groups')
-        .update({ tutor_id: null })
-        .eq('tutor_id', user.user_id)
+        .from('teacher_groups')
+        .delete()
+        .eq('teacher_id', user.user_id)
+        .eq('is_tutor', true)
 
       // Asignar nuevo grupo como tutor si está seleccionado
       if (editingData.tutorGroupId) {
-        const { error: tutorError } = await supabase
-          .from('groups')
-          .update({ tutor_id: user.user_id })
-          .eq('id', editingData.tutorGroupId)
+        try {
+          // Convertir tutorGroupId a número para Supabase
+          const tutorGroupIdNum = typeof editingData.tutorGroupId === 'string' ? parseInt(editingData.tutorGroupId, 10) : editingData.tutorGroupId
+          
+          // Verificar si ya existe la relación
+          const { data: existing } = await supabase
+            .from('teacher_groups')
+            .select('id, is_tutor')
+            .eq('teacher_id', user.user_id)
+            .eq('group_id', tutorGroupIdNum)
+            .maybeSingle()
 
-        if (tutorError) {
-          console.warn('No se pudo asignar como tutor:', tutorError)
+          if (existing) {
+            // Si ya existe, actualizar is_tutor a true
+            const { error: tutorError } = await supabase
+              .from('teacher_groups')
+              .update({ is_tutor: true })
+              .eq('id', existing.id)
+
+            if (tutorError) {
+              console.warn('No se pudo asignar como tutor:', tutorError)
+            }
+          } else {
+            // Si no existe, insertar con is_tutor = true
+            const { error: tutorError } = await supabase
+              .from('teacher_groups')
+              .insert({
+                teacher_id: user.user_id,
+                group_id: tutorGroupIdNum,
+                is_tutor: true,
+              })
+
+            if (tutorError) {
+              console.warn('No se pudo asignar como tutor:', tutorError)
+            }
+          }
+        } catch (error) {
+          console.error('Error al asignar como tutor:', error)
         }
       }
 
       setSuccessMessage('Usuario actualizado correctamente.')
+      setShowEditModal(false)
       setEditingId(null)
       setEditingData({})
-      hasEditingChanges.current = false
       initialEditingDataRef.current = null
-      setShowEditModal(false)
       await fetchUsers()
     } catch (error) {
       console.error('Error al actualizar usuario:', error)
@@ -607,7 +884,7 @@ export default function AdminUsers() {
   }
 
   const handleCancel = () => {
-    handleCloseEditModal(() => setShowEditModal(false))
+    handleCloseEditModal()
   }
 
   const handleDelete = async (id) => {
@@ -648,144 +925,7 @@ export default function AdminUsers() {
     }
   }
 
-  // Funciones helper para importación CSV con CsvImporter
-  const validateCsvRow = (row, index) => {
-    const errors = []
-
-    if (!row.email || !row.email.includes('@')) {
-      return `Fila ${index + 1}: Email inválido o vacío`
-    }
-
-    if (!row.password || row.password.length < 6) {
-      return `Fila ${index + 1}: La contraseña debe tener al menos 6 caracteres`
-    }
-
-    if (!row.first_name || row.first_name.trim() === '') {
-      return `Fila ${index + 1}: El nombre es requerido`
-    }
-
-    if (!row.last_name || row.last_name.trim() === '') {
-      return `Fila ${index + 1}: El apellido es requerido`
-    }
-
-    return null
-  }
-
-  const handleCsvImport = async (csvData) => {
-    setSubmitting(true)
-    setErrorMessage(null)
-    setSuccessMessage(null)
-
-    const results = {
-      total: csvData.length,
-      success: [],
-      errors: [],
-      skipped: [],
-    }
-
-    const batchSize = 10
-    for (let i = 0; i < csvData.length; i += batchSize) {
-      const batch = csvData.slice(i, i + batchSize)
-      
-      await Promise.all(
-        batch.map(async (row, batchIndex) => {
-          const globalIndex = i + batchIndex
-          try {
-            const { data: existingProfile } = await supabase
-              .from('user_profiles')
-              .select('id, user_id')
-              .eq('email', row.email)
-              .maybeSingle()
-
-            if (existingProfile) {
-              results.skipped.push({
-                row: globalIndex + 2,
-                email: row.email,
-                reason: 'El usuario ya existe',
-              })
-              return
-            }
-
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-              email: row.email,
-              password: row.password,
-            })
-
-            if (authError) {
-              if (authError.message.includes('already registered')) {
-                results.skipped.push({
-                  row: globalIndex + 2,
-                  email: row.email,
-                  reason: 'El usuario ya existe en auth.users',
-                })
-                return
-              }
-              throw authError
-            }
-
-            if (!authData.user) {
-              throw new Error('No se pudo crear el usuario en auth.users')
-            }
-
-            const userId = authData.user.id
-
-            const { error: profileError } = await supabase
-              .from('user_profiles')
-              .insert({
-                user_id: userId,
-                first_name: row.first_name,
-                last_name: row.last_name,
-                email: row.email,
-              })
-
-            if (profileError && !profileError.message.includes('duplicate')) {
-              throw profileError
-            }
-
-            if (row.role && row.role.trim() !== '') {
-              const role = roles.find((r) => r.name.toLowerCase() === row.role.trim().toLowerCase())
-              if (role) {
-                const { error: roleError } = await supabase
-                  .from('user_roles')
-                  .insert({
-                    user_id: userId,
-                    role_id: role.id,
-                  })
-
-                if (roleError && !roleError.message.includes('duplicate')) {
-                  console.warn(`No se pudo asignar rol a ${row.email}:`, roleError)
-                }
-              }
-            }
-
-            results.success.push({
-              row: globalIndex + 2,
-              email: row.email,
-              name: `${row.first_name} ${row.last_name}`,
-            })
-          } catch (error) {
-            results.errors.push({
-              row: globalIndex + 2,
-              email: row.email,
-              error: error.message || 'Error desconocido',
-            })
-          }
-        })
-      )
-    }
-
-    setImportResults(results)
-    setSubmitting(false)
-
-    if (results.success.length > 0) {
-      setSuccessMessage(`Se importaron ${results.success.length} de ${results.total} usuarios correctamente.`)
-      await fetchUsers()
-    }
-
-    return results
-  }
-
-  // Funciones para importación CSV (mantener todas las funciones existentes) - DEPRECATED
+  // Funciones para importación CSV (mantener todas las funciones existentes)
   const parseCSV = (csvText) => {
     const lines = csvText.split('\n').filter((line) => line.trim())
     if (lines.length < 2) {
@@ -1052,11 +1192,22 @@ export default function AdminUsers() {
     try {
       const { data, error } = await supabase
         .from('groups')
-        .select('id, grade, specialty, section, nomenclature, tutor_id')
+        .select('id, grade, specialty, section, nomenclature')
         .order('nomenclature')
 
       if (error) throw error
       setAllGroups(data || [])
+
+      // Cargar grupos que tienen tutores asignados
+      const { data: tutorsData, error: tutorsError } = await supabase
+        .from('teacher_groups')
+        .select('group_id')
+        .eq('is_tutor', true)
+
+      if (!tutorsError && tutorsData) {
+        const tutorGroupIds = new Set(tutorsData.map((t) => t.group_id))
+        setGroupsWithTutors(tutorGroupIds)
+      }
     } catch (error) {
       console.error('Error al cargar grupos:', error)
     }
@@ -1065,11 +1216,14 @@ export default function AdminUsers() {
   const fetchTeacherGroups = async (teacherUserId) => {
     try {
       const { data, error } = await supabase
-        .from('teacher_subjects')
+        .from('teacher_group_subjects')
         .select(`
           id,
-          subject_name,
           shift,
+          subject:subjects!teacher_group_subjects_subject_id_fkey (
+            id,
+            subject_name
+          ),
           group:groups (
             id,
             grade,
@@ -1085,6 +1239,7 @@ export default function AdminUsers() {
       
       const normalized = (data || []).map((entry) => ({
         ...entry,
+        subject_name: entry.subject?.subject_name || 'Materia por asignar',
         group: Array.isArray(entry.group) ? entry.group[0] : entry.group,
       }))
       
@@ -1098,16 +1253,112 @@ export default function AdminUsers() {
   const fetchTutorGroup = async (teacherUserId) => {
     try {
       const { data, error } = await supabase
-        .from('groups')
-        .select('id, grade, specialty, section, nomenclature')
-        .eq('tutor_id', teacherUserId)
+        .from('teacher_groups')
+        .select(`
+          id,
+          is_tutor,
+          group:groups (
+            id,
+            grade,
+            specialty,
+            section,
+            nomenclature
+          )
+        `)
+        .eq('teacher_id', teacherUserId)
+        .eq('is_tutor', true)
         .maybeSingle()
 
       if (error) throw error
-      setTutorGroup(data)
+      
+      // Normalizar los datos para mantener compatibilidad con el código existente
+      if (data && data.group) {
+        const group = Array.isArray(data.group) ? data.group[0] : data.group
+        setTutorGroup({
+          id: group.id,
+          grade: group.grade,
+          specialty: group.specialty,
+          section: group.section,
+          nomenclature: group.nomenclature,
+        })
+      } else {
+        setTutorGroup(null)
+      }
     } catch (error) {
       console.error('Error al cargar grupo del tutor:', error)
       setTutorGroup(null)
+    }
+  }
+
+  const fetchTutorGroups = async (teacherUserId) => {
+    try {
+      const { data, error } = await supabase
+        .from('teacher_groups')
+        .select(`
+          id,
+          group:groups (
+            id,
+            grade,
+            specialty,
+            section,
+            nomenclature
+          )
+        `)
+        .eq('teacher_id', teacherUserId)
+        .eq('is_tutor', true)
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+      
+      const normalized = (data || []).map((entry) => ({
+        id: entry.id,
+        group: Array.isArray(entry.group) ? entry.group[0] : entry.group,
+      }))
+      
+      setTutorGroups(normalized)
+      return normalized
+    } catch (error) {
+      console.error('Error al cargar grupos del tutor:', error)
+      setTutorGroups([])
+      return []
+    }
+  }
+
+  const fetchTeacherGroupsFromTeacherGroups = async (teacherUserId) => {
+    try {
+      // Traer TODOS los grupos donde el docente está asignado (tanto is_tutor = false como true)
+      // porque si es tutor, también es docente del grupo
+      const { data, error } = await supabase
+        .from('teacher_groups')
+        .select(`
+          id,
+          is_tutor,
+          group:groups (
+            id,
+            grade,
+            specialty,
+            section,
+            nomenclature
+          )
+        `)
+        .eq('teacher_id', teacherUserId)
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+      
+      const normalized = (data || []).map((entry) => ({
+        id: entry.id,
+        is_tutor: entry.is_tutor,
+        group: Array.isArray(entry.group) ? entry.group[0] : entry.group,
+        source: 'teacher_groups',
+      }))
+      
+      setTeacherGroupsFromTeacherGroups(normalized)
+      return normalized
+    } catch (error) {
+      console.error('Error al cargar grupos del docente desde teacher_groups:', error)
+      setTeacherGroupsFromTeacherGroups([])
+      return []
     }
   }
 
@@ -1150,13 +1401,14 @@ export default function AdminUsers() {
     setSuccessMessage(null)
 
     try {
+      const subjectId = await getOrCreateSubjectId(teacherForm.subjectName)
       const { error } = await supabase
-        .from('teacher_subjects')
+        .from('teacher_group_subjects')
         .insert({
           teacher_id: showTeacherManagement,
           group_id: teacherForm.groupId,
-          subject_name: teacherForm.subjectName,
-          shift: teacherForm.shift,
+          subject_id: subjectId,
+          shift: teacherForm.shift === 'matutino' ? 'M' : 'V',
         })
 
       if (error) throw error
@@ -1172,7 +1424,7 @@ export default function AdminUsers() {
     }
   }
 
-  const handleRemoveTeacherGroup = async (teacherSubjectId) => {
+  const handleRemoveTeacherGroup = async (teacherGroupSubjectId) => {
     if (!confirm('¿Estás seguro de que deseas remover este grupo del docente?')) {
       return
     }
@@ -1182,9 +1434,9 @@ export default function AdminUsers() {
 
     try {
       const { error } = await supabase
-        .from('teacher_subjects')
+        .from('teacher_group_subjects')
         .delete()
-        .eq('id', teacherSubjectId)
+        .eq('id', teacherGroupSubjectId)
 
       if (error) throw error
 
@@ -1201,16 +1453,31 @@ export default function AdminUsers() {
   const handleAssignTutor = async (groupId) => {
     if (!showTeacherManagement) return
 
-    const { data: existingGroup } = await supabase
-      .from('groups')
-      .select('tutor_id, nomenclature')
-      .eq('id', groupId)
-      .single()
+    // Verificar si el grupo ya tiene un tutor asignado
+    const { data: existingTutor } = await supabase
+      .from('teacher_groups')
+      .select(`
+        id,
+        teacher_id,
+        group:groups!teacher_groups_group_id_fkey (
+          id,
+          nomenclature
+        )
+      `)
+      .eq('group_id', groupId)
+      .eq('is_tutor', true)
+      .maybeSingle()
 
-    if (existingGroup?.tutor_id && existingGroup.tutor_id !== showTeacherManagement) {
-      if (!confirm(`El grupo ${existingGroup.nomenclature} ya tiene un tutor asignado. ¿Deseas reemplazarlo?`)) {
+    if (existingTutor && existingTutor.teacher_id !== showTeacherManagement) {
+      const group = Array.isArray(existingTutor.group) ? existingTutor.group[0] : existingTutor.group
+      if (!confirm(`El grupo ${group?.nomenclature || groupId} ya tiene un tutor asignado. ¿Deseas reemplazarlo?`)) {
         return
       }
+      // Eliminar el tutor anterior
+      await supabase
+        .from('teacher_groups')
+        .delete()
+        .eq('id', existingTutor.id)
     }
 
     setSubmitting(true)
@@ -1218,12 +1485,34 @@ export default function AdminUsers() {
     setSuccessMessage(null)
 
     try {
-      const { error } = await supabase
-        .from('groups')
-        .update({ tutor_id: showTeacherManagement })
-        .eq('id', groupId)
+      // Verificar si ya existe la relación (como docente)
+      const { data: existing } = await supabase
+        .from('teacher_groups')
+        .select('id, is_tutor')
+        .eq('teacher_id', showTeacherManagement)
+        .eq('group_id', groupId)
+        .maybeSingle()
 
-      if (error) throw error
+      if (existing) {
+        // Si ya existe, actualizar is_tutor a true
+        const { error } = await supabase
+          .from('teacher_groups')
+          .update({ is_tutor: true })
+          .eq('id', existing.id)
+
+        if (error) throw error
+      } else {
+        // Si no existe, insertar con is_tutor = true
+        const { error } = await supabase
+          .from('teacher_groups')
+          .insert({
+            teacher_id: showTeacherManagement,
+            group_id: groupId,
+            is_tutor: true,
+          })
+
+        if (error) throw error
+      }
 
       setSuccessMessage('Tutor asignado correctamente.')
       await fetchTutorGroup(showTeacherManagement)
@@ -1247,12 +1536,44 @@ export default function AdminUsers() {
     setErrorMessage(null)
 
     try {
-      const { error } = await supabase
-        .from('groups')
-        .update({ tutor_id: null })
-        .eq('id', tutorGroup.id)
+      // Eliminar el registro de tutor (o actualizar is_tutor a false si también es docente)
+      // Primero verificar si también es docente del mismo grupo
+      const { data: existing } = await supabase
+        .from('teacher_groups')
+        .select('id, is_tutor')
+        .eq('teacher_id', showTeacherManagement)
+        .eq('group_id', tutorGroup.id)
+        .eq('is_tutor', true)
+        .maybeSingle()
 
-      if (error) throw error
+      if (existing) {
+        // Verificar si también está como docente (is_tutor = false)
+        const { data: asDocente } = await supabase
+          .from('teacher_groups')
+          .select('id')
+          .eq('teacher_id', showTeacherManagement)
+          .eq('group_id', tutorGroup.id)
+          .eq('is_tutor', false)
+          .maybeSingle()
+
+        if (asDocente) {
+          // Si también es docente, solo eliminar el registro de tutor
+          const { error } = await supabase
+            .from('teacher_groups')
+            .delete()
+            .eq('id', existing.id)
+
+          if (error) throw error
+        } else {
+          // Si no es docente, eliminar completamente el registro
+          const { error } = await supabase
+            .from('teacher_groups')
+            .delete()
+            .eq('id', existing.id)
+
+          if (error) throw error
+        }
+      }
 
       setSuccessMessage('Tutor removido correctamente.')
       await fetchTutorGroup(showTeacherManagement)
@@ -1344,9 +1665,12 @@ export default function AdminUsers() {
     },
   ]
 
+  // Calcular grupos para el badge - usar todos los grupos donde el docente está registrado
+  const groupsCount = teacherGroupsFromTeacherGroups?.length || 0
   const userTabs = [
     { id: 'overview', label: 'Resumen' },
     { id: 'roles', label: 'Roles', badge: selectedUser?.roles?.length || 0 },
+    { id: 'groups', label: 'Grupos', badge: groupsCount > 0 ? groupsCount : undefined },
   ]
 
   const roleTabs = [
@@ -1416,22 +1740,20 @@ export default function AdminUsers() {
               <p className="text-gray-500 dark:text-gray-400">Cargando usuarios...</p>
             </div>
           ) : (
-            <>
-              <SimpleTable
-                columns={tableColumns}
-                data={users}
-                selectedId={selectedUserId ? users.find((u) => u.user_id === selectedUserId)?.id : null}
-                onSelect={(id) => {
-                  const user = users.find((u) => u.id === id)
-                  if (user) handleSelect(user.id)
-                }}
-                loading={submitting}
-                maxHeight="500px"
-                collapsible={true}
-                title="Lista de Usuarios"
-                itemKey="id"
-              />
-            </>
+            <SimpleTable
+              columns={tableColumns}
+              data={users}
+              selectedId={selectedUserId ? users.find((u) => u.user_id === selectedUserId)?.id : null}
+              onSelect={(id) => {
+                const user = users.find((u) => u.id === id)
+                if (user) handleSelect(user.id)
+              }}
+              loading={submitting}
+              maxHeight="500px"
+              collapsible={true}
+              title="Lista de Usuarios"
+              itemKey="id"
+            />
           )}
         </div>
 
@@ -1440,391 +1762,534 @@ export default function AdminUsers() {
           <DetailView
             selectedItem={selectedUser}
             title={`Detalles: ${selectedUser.first_name} ${selectedUser.last_name}`}
-            tabs={userTabs.map(tab => ({
-              ...tab,
-              content: tab.id === 'overview' ? (
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      Información del Usuario
-                    </h3>
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Nombre:</span>{' '}
-                        <span className="text-sm text-gray-900 dark:text-white">
-                          {selectedUser.first_name} {selectedUser.last_name}
-                        </span>
+            tabs={userTabs}
+            defaultTab={activeTab}
+            collapsible={true}
+            onCollapseChange={(collapsed) => {}}
+            renderContent={(item, tab) => {
+              if (tab === 'overview') {
+                return (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                          Información del Usuario
+                        </h3>
+                        <div className="space-y-2">
+                          <div>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Nombre:</span>
+                            <p className="text-sm text-gray-900 dark:text-white mt-1">
+                              {item.first_name} {item.last_name}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Email:</span>
+                            <p className="text-sm text-gray-900 dark:text-white mt-1">{item.email}</p>
+                          </div>
+                          <div>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">User ID:</span>
+                            <p className="text-xs text-gray-900 dark:text-white font-mono mt-1 break-all">{item.user_id}</p>
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Email:</span>{' '}
-                        <span className="text-sm text-gray-900 dark:text-white">{selectedUser.email}</span>
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">User ID:</span>{' '}
-                        <span className="text-sm text-gray-900 dark:text-white font-mono text-xs">{selectedUser.user_id}</span>
+
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                          Roles Asignados ({item.roles?.length || 0})
+                        </h3>
+                        {item.roles && item.roles.length > 0 ? (
+                          <div className="space-y-2">
+                            {item.roles.map((role, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => setSelectedRoleId(role.role_id)}
+                                className="w-full text-left p-2 bg-white dark:bg-gray-700 rounded hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                              >
+                                <div className="font-medium text-sm text-gray-900 dark:text-white">
+                                  {role.role_name}
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-500 dark:text-gray-400">Este usuario no tiene roles asignados.</p>
+                        )}
                       </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                      Roles Asignados ({selectedUser.roles?.length || 0})
-                    </h3>
-                    {selectedUser.roles && selectedUser.roles.length > 0 ? (
-                      <div className="space-y-2">
-                        {selectedUser.roles.map((role, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => setSelectedRoleId(role.role_id)}
-                            className="w-full text-left p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <div className="font-medium text-sm text-gray-900 dark:text-white">
-                              {role.role_name}
-                            </div>
-                          </button>
-                        ))}
+                  </div>
+                )
+              }
+
+              if (tab === 'roles') {
+                return (
+                  <div className="space-y-2">
+                    {item.roles && item.roles.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          <thead className="bg-gray-50 dark:bg-gray-800">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                Rol
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                Acción
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-gray-700">
+                            {item.roles.map((role, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                  {role.role_name}
+                                </td>
+                                <td className="px-4 py-2 text-sm">
+                                  <button
+                                    onClick={() => setSelectedRoleId(role.role_id)}
+                                    className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                                  >
+                                    Ver usuarios
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     ) : (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Este usuario no tiene roles asignados.</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Este usuario no tiene roles asignados.
+                      </p>
                     )}
                   </div>
+                )
+              }
 
-                  {selectedUser.roles?.some((r) => r.role_name?.toLowerCase() === 'docente') && (
+              if (tab === 'groups') {
+                // Todos los grupos donde el docente está asignado (tanto is_tutor = false como true)
+                // porque si es tutor, también es docente del grupo
+                const allTeacherGroups = teacherGroupsFromTeacherGroups || []
+                const totalTeacherGroups = allTeacherGroups.length
+                
+                // Solo los grupos donde is_tutor = true
+                const tutorGroupsList = allTeacherGroups.filter(tg => tg.is_tutor === true)
+                const totalTutorGroups = tutorGroupsList.length
+
+                return (
+                  <div className="space-y-4">
+                    {/* Grupos como Docente - SIEMPRE mostrar el título */}
+                    {/* Muestra TODOS los grupos (tanto is_tutor = false como true) */}
                     <div>
-                      <button
-                        onClick={() => openTeacherManagement(selectedUser)}
-                        className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded hover:bg-purple-700 transition-colors"
-                      >
-                        Gestionar Grupos del Docente
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {selectedUser.roles && selectedUser.roles.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-800">
-                          <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                              Rol
-                            </th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                              Acción
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-gray-700">
-                          {selectedUser.roles.map((role, idx) => (
-                            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                              <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
-                                {role.role_name}
-                              </td>
-                              <td className="px-4 py-2 text-sm">
-                                <button
-                                  onClick={() => setSelectedRoleId(role.role_id)}
-                                  className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
-                                >
-                                  Ver usuarios
-                                </button>
-                              </td>
-                            </tr>
+                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                        Grupos como Docente ({totalTeacherGroups})
+                      </h3>
+                      {totalTeacherGroups > 0 ? (
+                        <div className="space-y-2">
+                          {allTeacherGroups.map((tg) => (
+                            <div
+                              key={tg.id}
+                              className={`p-3 rounded-lg border ${
+                                tg.is_tutor === true
+                                  ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800'
+                                  : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {tg.group?.nomenclature || 'Sin nombre'}
+                                  </p>
+                                  {tg.group && (
+                                    <p className={`text-xs mt-1 ${
+                                      tg.is_tutor === true
+                                        ? 'text-gray-600 dark:text-gray-400'
+                                        : 'text-gray-500 dark:text-gray-500'
+                                    }`}>
+                                      {tg.group.grade}° {tg.group.specialty}
+                                      {tg.group.section && ` • ${tg.group.section}`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           ))}
-                        </tbody>
-                      </table>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          No hay grupos asignados.
+                        </p>
+                      )}
                     </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Este usuario no tiene roles asignados.
-                    </p>
-                  )}
-                </div>
-              )
-            }))}
-            collapsible={true}
-            defaultCollapsed={false}
+
+                    {/* Grupos como Tutor - SIEMPRE mostrar el título */}
+                    {/* Solo muestra grupos donde is_tutor = true */}
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                        Grupos como Tutor ({totalTutorGroups})
+                      </h3>
+                      {totalTutorGroups > 0 ? (
+                        <div className="space-y-2">
+                          {tutorGroupsList.map((tg) => (
+                            <div
+                              key={tg.id}
+                              className="p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-200 dark:border-green-800"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {tg.group?.nomenclature || 'Sin nombre'}
+                                  </p>
+                                  {tg.group && (
+                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                      {tg.group.grade}° {tg.group.specialty}
+                                      {tg.group.section && ` • Sección: ${tg.group.section}`}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          No hay grupos asignados.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )
+              }
+
+              return null
+            }}
           />
         ) : selectedRoleId && selectedRole ? (
           <DetailView
             selectedItem={selectedRole}
-            title={`Detalles del Rol: ${selectedRole.name}`}
-            tabs={roleTabs.map(tab => ({
-              ...tab,
-              content: tab.id === 'overview' ? (
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                      Información del Rol
-                    </h3>
-                    <div className="space-y-2">
-                      <div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Nombre:</span>{' '}
-                        <span className="text-sm text-gray-900 dark:text-white">{selectedRole.name}</span>
-                      </div>
-                      {selectedRole.description && (
-                        <div>
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Descripción:</span>{' '}
-                          <span className="text-sm text-gray-900 dark:text-white">{selectedRole.description}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                      Usuarios con este Rol ({roleUsers.length})
-                    </h3>
-                    {roleUsers.length > 0 ? (
-                      <div className="space-y-2">
-                        {roleUsers.map((user) => (
-                          <button
-                            key={user.user_id}
-                            onClick={() => setSelectedUserId(user.user_id)}
-                            className="w-full text-left p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                          >
-                            <div className="font-medium text-sm text-gray-900 dark:text-white">
-                              {user.first_name} {user.last_name}
-                            </div>
-                            {user.email && (
-                              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                {user.email}
-                              </div>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-gray-500 dark:text-gray-400">No hay usuarios con este rol.</p>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {roleUsers.length > 0 ? (
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-800">
-                          <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                              Nombre
-                            </th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                              Email
-                            </th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                              Acción
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-gray-700">
-                          {roleUsers.map((user) => (
-                            <tr key={user.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                              <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
-                                {user.first_name} {user.last_name}
-                              </td>
-                              <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
-                                {user.email || '-'}
-                              </td>
-                              <td className="px-4 py-2 text-sm">
-                                <button
-                                  onClick={() => setSelectedUserId(user.user_id)}
-                                  className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
-                                >
-                                  Ver roles
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">No hay usuarios con este rol.</p>
-                  )}
-                </div>
-              )
-            }))}
+            title={selectedRole.name}
+            tabs={roleTabs}
+            defaultTab={activeTab}
             collapsible={true}
-            defaultCollapsed={false}
-          />
-        ) : (
-          <DetailView
-            selectedItem={null}
-            title="Detalles"
-            emptyMessage="Selecciona un usuario o haz click en un rol para ver sus detalles"
-            collapsible={true}
-            defaultCollapsed={true}
-          />
-        )}
-      </div>
-
-      {/* Modal de Crear Usuario */}
-      <Modal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onCloseAttempt={handleCloseCreateModal}
-        title="Crear Nuevo Usuario"
-        size="lg"
-      >
-        <form onSubmit={handleCreate}>
-          <div className="space-y-4">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  {formFields.map((field) => (
-                    <th
-                      key={field.name}
-                      className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
-                    >
-                      {field.label}
-                    </th>
-                  ))}
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Acción
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <CrudFormRow
-                  fields={formFields}
-                  formData={formData}
-                  onChange={handleFormChange}
-                  onSubmit={handleCreate}
-                  onCancel={() => handleCloseCreateModal(() => setShowCreateModal(false))}
-                  loading={submitting}
-                  submitLabel="Crear"
-                />
-              </tbody>
-            </table>
-            
-            {/* Sección de Grupos y Tutor - Solo visible para roles Docente o Tutor */}
-            {(formData.role_id && (() => {
-              const selectedRole = roles.find((r) => r.id === formData.role_id)
-              const roleName = selectedRole?.name?.toLowerCase() || ''
-              return roleName === 'docente' || roleName === 'tutor'
-            })()) && (
-              <div className="pt-4 border-t border-gray-200 dark:border-slate-700 space-y-4">
-                {/* Solo mostrar grupos si es Docente */}
-                {(() => {
-                  const selectedRole = roles.find((r) => r.id === formData.role_id)
-                  const roleName = selectedRole?.name?.toLowerCase() || ''
-                  return roleName === 'docente' && (
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                        Asignar Grupos como Docente
+            onCollapseChange={(collapsed) => {}}
+            renderContent={(item, tab) => {
+              if (tab === 'overview') {
+                return (
+                  <div className="space-y-4">
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                        Información del Rol
                       </h3>
-                      <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-3">
-                        {allGroups.length === 0 ? (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">No hay grupos disponibles</p>
-                        ) : (
-                          allGroups.map((group) => {
-                            const isSelected = formData.selectedGroups?.some((g) => String(g.groupId) === String(group.id)) || false
-                            const selectedGroupData = formData.selectedGroups?.find((g) => String(g.groupId) === String(group.id))
-                            
-                            return (
-                              <div
-                                key={group.id}
-                                className={`p-3 border rounded-lg ${
-                                  isSelected
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
-                                    : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-gray-800'
-                                }`}
-                              >
-                                <label className="flex items-center space-x-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={(e) => {
-                                      const isChecked = e.target.checked
-                                      setFormData((prev) => {
-                                        const currentGroups = prev.selectedGroups || []
-                                        if (isChecked) {
-                                          return {
-                                            ...prev,
-                                            selectedGroups: [...currentGroups, { groupId: group.id, shift: 'M' }],
-                                          }
-                                        } else {
-                                          return {
-                                            ...prev,
-                                            selectedGroups: currentGroups.filter((g) => String(g.groupId) !== String(group.id)),
-                                          }
-                                        }
-                                      })
-                                    }}
-                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                  />
-                                  <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">
-                                    {group.nomenclature} - {group.grade}° {group.specialty}
-                                    {group.section && ` • ${group.section}`}
-                                  </span>
-                                </label>
-                                
-                                {isSelected && (
-                                  <div className="mt-2 ml-6">
-                                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                                      Turno:
-                                    </label>
-                                    <select
-                                      value={selectedGroupData?.shift || 'M'}
-                                      onChange={(e) => {
-                                        setFormData((prev) => ({
-                                          ...prev,
-                                          selectedGroups: (prev.selectedGroups || []).map((g) =>
-                                            String(g.groupId) === String(group.id) ? { ...g, shift: e.target.value } : g
-                                          ),
-                                        }))
-                                      }}
-                                      className="w-full rounded border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-sm text-gray-900 dark:text-white"
-                                    >
-                                      <option value="M">Matutino</option>
-                                      <option value="V">Vespertino</option>
-                                    </select>
-                                  </div>
-                                )}
-                              </div>
-                            )
-                          })
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Nombre:</span>
+                          <p className="text-sm text-gray-900 dark:text-white mt-1">{item.name}</p>
+                        </div>
+                        {item.description && (
+                          <div>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Descripción:</span>
+                            <p className="text-sm text-gray-900 dark:text-white mt-1">{item.description}</p>
+                          </div>
                         )}
                       </div>
                     </div>
-                  )
-                })()}
 
-                <div>
-                  <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                    Asignar como Tutor de Grupo
-                  </h3>
-                  <select
-                    value={String(formData.tutorGroupId || '')}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, tutorGroupId: e.target.value }))
-                    }
-                    className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
-                  >
-                    <option value="">Seleccionar grupo (opcional)</option>
-                    {allGroups.map((group) => (
-                      <option key={group.id} value={String(group.id)}>
-                        {group.nomenclature} - {group.grade}° {group.specialty}
-                        {group.section && ` • ${group.section}`}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Selecciona un grupo si este usuario será tutor de ese grupo
-                  </p>
-                </div>
-              </div>
-            )}
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
+                        Usuarios con este Rol ({roleUsers.length})
+                      </h3>
+                      {roleUsers.length > 0 ? (
+                        <div className="space-y-2">
+                          {roleUsers.map((user) => (
+                            <button
+                              key={user.user_id}
+                              onClick={() => setSelectedUserId(user.user_id)}
+                              className="w-full text-left p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            >
+                              <div className="font-medium text-sm text-gray-900 dark:text-white">
+                                {user.first_name} {user.last_name}
+                              </div>
+                              {user.email && (
+                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                  {user.email}
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No hay usuarios con este rol.</p>
+                      )}
+                    </div>
+                  </div>
+                )
+              }
+
+              if (tab === 'users') {
+                return (
+                  <div className="space-y-2">
+                    {roleUsers.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          <thead className="bg-gray-50 dark:bg-gray-800">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                Nombre
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                Email
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                Acción
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-gray-700">
+                            {roleUsers.map((user) => (
+                              <tr key={user.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                  {user.first_name} {user.last_name}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                  {user.email || '-'}
+                                </td>
+                                <td className="px-4 py-2 text-sm">
+                                  <button
+                                    onClick={() => setSelectedUserId(user.user_id)}
+                                    className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
+                                  >
+                                    Ver roles
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        No hay usuarios con este rol.
+                      </p>
+                    )}
+                  </div>
+                )
+              }
+
+              return null
+            }}
+          />
+        ) : null}
+      </div>
+
+      {/* Modales */}
+      {/* Modal de Crear Usuario */}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => handleCloseCreateModal(() => setShowCreateModal(false))}
+        title="Crear Nuevo Usuario"
+        size="lg"
+      >
+        <form onSubmit={handleCreate} className="space-y-4">
+          <FormRow columns={2}>
+            <FormField label="Email" htmlFor="email" required>
+              <Input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleFormChange}
+                placeholder="correo@ejemplo.com"
+                required
+              />
+            </FormField>
+            <FormField label="Contraseña" htmlFor="password" required>
+              <Input
+                type="password"
+                name="password"
+                value={formData.password}
+                onChange={handleFormChange}
+                placeholder="Mínimo 6 caracteres"
+                required
+              />
+            </FormField>
+          </FormRow>
+          
+          <FormRow columns={2}>
+            <FormField label="Nombre" htmlFor="first_name" required>
+              <Input
+                type="text"
+                name="first_name"
+                value={formData.first_name}
+                onChange={handleFormChange}
+                placeholder="Nombre(s)"
+                required
+              />
+            </FormField>
+            <FormField label="Apellidos" htmlFor="last_name" required>
+              <Input
+                type="text"
+                name="last_name"
+                value={formData.last_name}
+                onChange={handleFormChange}
+                placeholder="Apellidos"
+                required
+              />
+            </FormField>
+          </FormRow>
+          
+          <FormField label="Rol" htmlFor="role_id">
+            <Select
+              name="role_id"
+              value={formData.role_id}
+              onChange={handleFormChange}
+              options={[
+                { value: '', label: 'Seleccionar rol...' },
+                ...roles.map((role) => ({ value: role.id, label: role.name })),
+              ]}
+            />
+          </FormField>
+          
+          <div className="flex gap-2 pt-2">
+            <button
+              type="submit"
+              disabled={submitting}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {submitting ? 'Creando...' : 'Crear Usuario'}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCloseCreateModal(() => setShowCreateModal(false))}
+              disabled={submitting}
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
           </div>
+          
+          {/* Sección de Grupos y Tutor - Solo visible para roles Docente o Tutor */}
+          {(formData.role_id && (() => {
+            const selectedRole = roles.find((r) => r.id === formData.role_id)
+            const roleName = selectedRole?.name?.toLowerCase() || ''
+            return roleName === 'docente' || roleName === 'tutor'
+          })()) && (
+            <div className="pt-4 border-t border-gray-200 dark:border-slate-700 space-y-4">
+              {/* Solo mostrar grupos si es Docente */}
+              {(() => {
+                const selectedRole = roles.find((r) => r.id === formData.role_id)
+                const roleName = selectedRole?.name?.toLowerCase() || ''
+                return roleName === 'docente' && (
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                      Asignar Grupos como Docente
+                    </h3>
+                    <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-3">
+                      {allGroups.length === 0 ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">No hay grupos disponibles</p>
+                      ) : (
+                        allGroups.map((group) => {
+                          const isSelected = formData.selectedGroups?.some((g) => String(g.groupId) === String(group.id)) || false
+                          const selectedGroupData = formData.selectedGroups?.find((g) => String(g.groupId) === String(group.id))
+                          
+                          return (
+                            <div
+                              key={group.id}
+                              className={`p-3 border rounded-lg ${
+                                isSelected
+                                  ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
+                                  : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                              }`}
+                            >
+                              <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const isChecked = e.target.checked
+                                    setFormData((prev) => {
+                                      const currentGroups = prev.selectedGroups || []
+                                      if (isChecked) {
+                                        return {
+                                          ...prev,
+                                          selectedGroups: [...currentGroups, { groupId: group.id, shift: 'M' }],
+                                        }
+                                      } else {
+                                        return {
+                                          ...prev,
+                                          selectedGroups: currentGroups.filter((g) => String(g.groupId) !== String(group.id)),
+                                        }
+                                      }
+                                    })
+                                  }}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm font-medium text-gray-900 dark:text-white flex-1">
+                                  {group.nomenclature} - {group.grade}° {group.specialty}
+                                  {group.section && ` • ${group.section}`}
+                                </span>
+                              </label>
+                              
+                              {isSelected && (
+                                <div className="mt-2 ml-6">
+                                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                    Turno:
+                                  </label>
+                                  <select
+                                    value={selectedGroupData?.shift || 'M'}
+                                    onChange={(e) => {
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        selectedGroups: (prev.selectedGroups || []).map((g) =>
+                                          String(g.groupId) === String(group.id) ? { ...g, shift: e.target.value } : g
+                                        ),
+                                      }))
+                                    }}
+                                    className="w-full rounded border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-1 text-sm text-gray-900 dark:text-white"
+                                  >
+                                    <option value="M">Matutino</option>
+                                    <option value="V">Vespertino</option>
+                                  </select>
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
+
+              <div>
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                  Asignar como Tutor de Grupo
+                </h3>
+                <select
+                  value={String(formData.tutorGroupId || '')}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, tutorGroupId: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
+                >
+                  <option value="">Seleccionar grupo (opcional)</option>
+                  {allGroups.map((group) => (
+                    <option key={group.id} value={String(group.id)}>
+                      {group.nomenclature} - {group.grade}° {group.specialty}
+                      {group.section && ` • ${group.section}`}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Selecciona un grupo si este usuario será tutor de ese grupo
+                </p>
+              </div>
+            </div>
+          )}
         </form>
       </Modal>
 
       {/* Modal de Importar Usuarios */}
       <Modal
         isOpen={showImportModal}
-        onClose={() => setShowImportModal(false)}
-        onCloseAttempt={handleCloseImportModal}
+        onClose={() => handleCloseImportModal(() => setShowImportModal(false))}
         title="Importar Usuarios desde CSV"
         size="lg"
       >
@@ -1839,68 +2304,52 @@ export default function AdminUsers() {
       </Modal>
 
       {/* Modal de Editar Usuario */}
-      {editingId && (
+      {showEditModal && editingId && (
         <Modal
           isOpen={showEditModal}
-          onClose={() => setShowEditModal(false)}
-          onCloseAttempt={handleCloseEditModal}
-          title={`Editar Usuario: ${editingData.first_name || ''} ${editingData.last_name || ''}`}
+          onClose={handleCloseEditModal}
+          title="Editar Usuario"
           size="lg"
         >
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Nombre
-                </label>
-                <input
+            <FormRow columns={3}>
+              <FormField label="Nombre" htmlFor="edit_first_name" required>
+                <Input
                   type="text"
+                  name="edit_first_name"
                   value={editingData.first_name || ''}
                   onChange={(e) => handleEditFieldChange(editingId, 'first_name', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Apellidos
-                </label>
-                <input
+              </FormField>
+              <FormField label="Apellidos" htmlFor="edit_last_name" required>
+                <Input
                   type="text"
+                  name="edit_last_name"
                   value={editingData.last_name || ''}
                   onChange={(e) => handleEditFieldChange(editingId, 'last_name', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
                 />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Email
-                </label>
-                <input
+              </FormField>
+              <FormField label="Email" htmlFor="edit_email" required>
+                <Input
                   type="email"
+                  name="edit_email"
                   value={editingData.email || ''}
                   onChange={(e) => handleEditFieldChange(editingId, 'email', e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
                 />
-              </div>
-            </div>
+              </FormField>
+            </FormRow>
             
-            <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Rol
-              </label>
-              <select
+            <FormField label="Rol" htmlFor="edit_role_id">
+              <Select
+                name="edit_role_id"
                 value={editingData.role_id || ''}
                 onChange={(e) => handleEditFieldChange(editingId, 'role_id', e.target.value)}
-                className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
-              >
-                <option value="">Sin rol</option>
-                {roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                options={[
+                  { value: '', label: 'Sin rol' },
+                  ...roles.map((role) => ({ value: role.id, label: role.name })),
+                ]}
+              />
+            </FormField>
 
             {/* Sección de Grupos y Tutor - Solo visible para roles Docente o Tutor */}
             {editingData.role_id && (() => {
@@ -1923,9 +2372,9 @@ export default function AdminUsers() {
                           <p className="text-sm text-gray-500 dark:text-gray-400">No hay grupos disponibles</p>
                         ) : (
                           allGroups.map((group) => {
-                            // Comparar IDs como strings para asegurar coincidencia
-                            const isSelected = editingData.selectedGroups?.some((g) => String(g.groupId) === String(group.id)) || false
-                            const selectedGroupData = editingData.selectedGroups?.find((g) => String(g.groupId) === String(group.id))
+                            const groupIdStr = String(group.id) // Normalizar a string
+                            const isSelected = editingData.selectedGroups?.some((g) => String(g.groupId) === groupIdStr) || false
+                            const selectedGroupData = editingData.selectedGroups?.find((g) => String(g.groupId) === groupIdStr)
                             
                             return (
                               <div
@@ -1946,10 +2395,12 @@ export default function AdminUsers() {
                                       if (isChecked) {
                                         handleEditFieldChange(editingId, 'selectedGroups', [
                                           ...currentGroups,
-                                          { groupId: group.id, shift: 'M' },
+                                          { groupId: groupIdStr, shift: 'M' }, // Convertir a string
                                         ])
                                       } else {
-                                        handleEditFieldChange(editingId, 'selectedGroups', currentGroups.filter((g) => String(g.groupId) !== String(group.id)))
+                                        handleEditFieldChange(editingId, 'selectedGroups', 
+                                          currentGroups.filter((g) => String(g.groupId) !== groupIdStr)
+                                        )
                                       }
                                     }}
                                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -1969,7 +2420,7 @@ export default function AdminUsers() {
                                       value={selectedGroupData?.shift || 'M'}
                                       onChange={(e) => {
                                         const updatedGroups = (editingData.selectedGroups || []).map((g) =>
-                                          String(g.groupId) === String(group.id) ? { ...g, shift: e.target.value } : g
+                                          String(g.groupId) === groupIdStr ? { ...g, shift: e.target.value } : g
                                         )
                                         handleEditFieldChange(editingId, 'selectedGroups', updatedGroups)
                                       }}
@@ -1994,7 +2445,7 @@ export default function AdminUsers() {
                     Grupo como Tutor
                   </h4>
                   <select
-                    value={String(editingData.tutorGroupId || '')}
+                    value={editingData.tutorGroupId || ''}
                     onChange={(e) => handleEditFieldChange(editingId, 'tutorGroupId', e.target.value)}
                     className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
                   >
@@ -2010,176 +2461,24 @@ export default function AdminUsers() {
               </div>
             )}
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-slate-700">
               <button
                 onClick={() => handleSave(editingId)}
                 disabled={submitting}
-                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
               >
                 {submitting ? 'Guardando...' : 'Guardar'}
               </button>
               <button
                 onClick={handleCancel}
                 disabled={submitting}
-                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors"
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
               >
                 Cancelar
               </button>
             </div>
           </div>
         </Modal>
-      )}
-
-      {/* Modal de gestión de grupos para docentes */}
-      {showTeacherManagement && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  Gestión de Grupos - Docente
-                </h2>
-                <button
-                  onClick={closeTeacherManagement}
-                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                  Grupos donde es Docente ({teacherGroups.length})
-                </h3>
-                {teacherGroups.length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400">No tiene grupos asignados como docente.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {teacherGroups.map((tg) => (
-                      <div
-                        key={tg.id}
-                        className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
-                      >
-                        <div>
-                          <p className="font-medium text-gray-900 dark:text-white">
-                            {tg.group?.nomenclature || 'Grupo desconocido'}
-                          </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {tg.subject_name} - {tg.shift}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveTeacherGroup(tg.id)}
-                          disabled={submitting}
-                          className="px-3 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 disabled:opacity-50"
-                        >
-                          Remover
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-                  <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-                    Agregar Grupo como Docente
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <select
-                      value={teacherForm.groupId}
-                      onChange={(e) => setTeacherForm({ ...teacherForm, groupId: e.target.value })}
-                      className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
-                    >
-                      <option value="">Seleccionar grupo</option>
-                      {allGroups.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.nomenclature}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="text"
-                      placeholder="Nombre de la materia"
-                      value={teacherForm.subjectName}
-                      onChange={(e) => setTeacherForm({ ...teacherForm, subjectName: e.target.value })}
-                      className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
-                    />
-                    <select
-                      value={teacherForm.shift}
-                      onChange={(e) => setTeacherForm({ ...teacherForm, shift: e.target.value })}
-                      className="rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
-                    >
-                      <option value="matutino">Matutino</option>
-                      <option value="vespertino">Vespertino</option>
-                    </select>
-                  </div>
-                  <button
-                    onClick={handleAddTeacherGroup}
-                    disabled={submitting}
-                    className="mt-3 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    Agregar Grupo
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                  Grupo como Tutor
-                </h3>
-                {tutorGroup ? (
-                  <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {tutorGroup.nomenclature}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {tutorGroup.grade}° {tutorGroup.specialty}
-                          {tutorGroup.section && ` • Sección: ${tutorGroup.section}`}
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleRemoveTutor}
-                        disabled={submitting}
-                        className="px-3 py-1 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 disabled:opacity-50"
-                      >
-                        Remover como Tutor
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                      No está asignado como tutor de ningún grupo.
-                    </p>
-                    <select
-                      value={teacherForm.groupId}
-                      onChange={(e) => {
-                        const groupId = e.target.value
-                        if (groupId) {
-                          handleAssignTutor(groupId)
-                        }
-                      }}
-                      className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white"
-                    >
-                      <option value="">Seleccionar grupo para asignar como tutor</option>
-                      {allGroups
-                        .filter((g) => !g.tutor_id || g.tutor_id === showTeacherManagement)
-                        .map((group) => (
-                          <option key={group.id} value={group.id}>
-                            {group.nomenclature}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   )
