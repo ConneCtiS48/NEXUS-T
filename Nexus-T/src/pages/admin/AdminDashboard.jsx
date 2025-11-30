@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../contexts/AuthContext'
+import PageHeader from '../../components/layout/PageHeader'
+import Alert from '../../components/base/Alert'
+import Section from '../../components/layout/Section'
 
 export default function AdminDashboard() {
   const { user } = useAuth()
@@ -46,20 +49,13 @@ export default function AdminDashboard() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
-          Dashboard Administrativo
-        </h1>
-        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
-          {user?.email ? `Sesión iniciada como ${user.email}` : 'Usuario no identificado'}
-        </p>
-      </header>
+      <PageHeader
+        variant="dashboard"
+        title="Dashboard Administrativo"
+        description={user?.email ? `Sesión iniciada como ${user.email}` : 'Usuario no identificado'}
+      />
 
-      {errorMessage && (
-        <div className="p-4 rounded-lg border border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200">
-          {errorMessage}
-        </div>
-      )}
+      {errorMessage && <Alert type="error" message={errorMessage} />}
 
       <section className="grid gap-4 sm:gap-6 md:grid-cols-2 lg:grid-cols-4">
         <div className="p-4 sm:p-6 bg-white dark:bg-slate-900 rounded-2xl shadow border border-gray-100 dark:border-slate-800">
@@ -127,10 +123,7 @@ export default function AdminDashboard() {
         </div>
       </section>
 
-      <section className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl p-4 sm:p-6 border border-blue-100 dark:border-slate-800">
-        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white mb-4">
-          Información del Sistema
-        </h2>
+      <Section title="Información del Sistema">
         <div className="space-y-4">
           <div className="p-4 bg-gray-50 dark:bg-slate-800 rounded-lg">
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
@@ -153,7 +146,7 @@ export default function AdminDashboard() {
             </ul>
           </div>
         </div>
-      </section>
+      </Section>
     </div>
   )
 }

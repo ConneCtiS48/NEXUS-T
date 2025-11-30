@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import SelectableTable from '../../components/admin/SelectableTable'
 import DetailPanel from '../../components/admin/DetailPanel'
+import PageHeader from '../../components/layout/PageHeader'
+import Alert from '../../components/base/Alert'
 
 export default function AdminGroups() {
   const [groups, setGroups] = useState([])
@@ -203,26 +205,13 @@ export default function AdminGroups() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
-      <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-          Gestión de Grupos
-        </h1>
-        <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mt-2">
-          Administra grupos, sus miembros y asignaturas.
-        </p>
-      </header>
+      <PageHeader
+        title="Gestión de Grupos"
+        description="Administra grupos, sus miembros y asignaturas."
+      />
 
-      {(errorMessage || successMessage) && (
-        <div
-          className={`mb-6 p-4 rounded-lg border ${
-            errorMessage
-              ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200'
-              : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200'
-          }`}
-        >
-          {errorMessage ?? successMessage}
-        </div>
-      )}
+      {errorMessage && <Alert type="error" message={errorMessage} />}
+      {successMessage && <Alert type="success" message={successMessage} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Panel izquierdo: Lista de grupos */}
