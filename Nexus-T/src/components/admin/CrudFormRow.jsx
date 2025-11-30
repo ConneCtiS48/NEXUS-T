@@ -1,44 +1,43 @@
+import Input from '../forms/Input'
+import Select from '../forms/Select'
+
 /**
  * Componente reutilizable para formulario de creación (arriba de tabla)
  * Se ve como una fila de tabla pero con inputs/selects
+ * Ahora usa los componentes forms genéricos
  */
-export default function CrudFormRow({ 
-  fields, 
-  formData, 
-  onChange, 
-  onSubmit, 
+export default function CrudFormRow({
+  fields,
+  formData,
+  onChange,
+  onSubmit,
   onCancel,
   loading = false,
-  submitLabel = 'Crear'
+  submitLabel = 'Crear',
 }) {
   return (
     <tr className="bg-blue-50 dark:bg-blue-950/20 border-b border-blue-200 dark:border-blue-800">
       {fields.map((field) => (
         <td key={field.name} className="px-4 py-3">
           {field.type === 'select' ? (
-            <select
+            <Select
               name={field.name}
               value={formData[field.name] || ''}
               onChange={onChange}
+              options={field.options || []}
+              placeholder={field.placeholder || 'Seleccionar...'}
               required={field.required}
-              className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            >
-              <option value="">{field.placeholder || 'Seleccionar...'}</option>
-              {field.options?.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              className="text-sm"
+            />
           ) : (
-            <input
+            <Input
               type={field.type || 'text'}
               name={field.name}
               value={formData[field.name] || ''}
               onChange={onChange}
               placeholder={field.placeholder}
               required={field.required}
-              className="w-full rounded-lg border border-gray-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="text-sm"
             />
           )}
         </td>
@@ -68,8 +67,3 @@ export default function CrudFormRow({
     </tr>
   )
 }
-
-
-
-
-
