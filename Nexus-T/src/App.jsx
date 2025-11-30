@@ -15,6 +15,7 @@ import AdminLayout from './pages/admin/AdminLayout'
 import AdminDashboard from './pages/admin/AdminDashboard'
 import AdminUsers from './pages/admin/AdminUsers'
 import AdminGroups from './pages/admin/AdminGroups'
+import AdminSubjects from './pages/admin/AdminSubjects'
 import AdminRoles from './pages/admin/AdminRoles'
 import ConnectionTest from './components/ConnectionTest'
 
@@ -98,6 +99,7 @@ function AppRoutes() {
         <Route index element={<AdminDashboard />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="groups" element={<AdminGroups />} />
+        <Route path="subjects" element={<AdminSubjects />} />
         <Route path="roles" element={<AdminRoles />} />
       </Route>
       <Route
