@@ -1833,7 +1833,7 @@ export default function AdminUsers() {
                                 Rol
                               </th>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                                Acción
+                                Descripción
                               </th>
                             </tr>
                           </thead>
@@ -1843,13 +1843,8 @@ export default function AdminUsers() {
                                 <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
                                   {role.role_name}
                                 </td>
-                                <td className="px-4 py-2 text-sm">
-                                  <button
-                                    onClick={() => setSelectedRoleId(role.role_id)}
-                                    className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
-                                  >
-                                    Ver usuarios
-                                  </button>
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                  {roles.find(r => r.id === role.role_id)?.description || 'Sin descripción'}
                                 </td>
                               </tr>
                             ))}
