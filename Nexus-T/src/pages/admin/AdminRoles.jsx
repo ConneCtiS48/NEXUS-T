@@ -78,31 +78,31 @@ export default function AdminRoles() {
       if (roleError) throw roleError
       setSelectedRole(roleData)
 
-      // Obtener usuarios con este rol
-      const { data: usersData, error: usersError } = await supabase
+      // Query 1: Obtener user_ids con este rol
+      const { data: userRolesData, error: userRolesError } = await supabase
         .from('user_roles')
-        .select(`
-          user_id,
-          user:user_profiles!user_roles_user_id_fkey(
-            id,
-            user_id,
-            first_name,
-            last_name,
-            email
-          )
-        `)
+        .select('user_id')
         .eq('role_id', roleId)
+
+      if (userRolesError) throw userRolesError
+
+      // Si no hay usuarios asignados, retornar vacío
+      if (!userRolesData || userRolesData.length === 0) {
+        setRoleUsers([])
+        return
+      }
+
+      const userIds = userRolesData.map((ur) => ur.user_id)
+
+      // Query 2: Obtener perfiles de usuarios
+      const { data: usersData, error: usersError } = await supabase
+        .from('user_profiles')
+        .select('id, user_id, first_name, last_name, email')
+        .in('user_id', userIds)
 
       if (usersError) throw usersError
 
-      // Normalizar datos
-      const usersMap = new Map()
-      usersData?.forEach((item) => {
-        if (item.user && !usersMap.has(item.user.user_id)) {
-          usersMap.set(item.user.user_id, item.user)
-        }
-      })
-      setRoleUsers(Array.from(usersMap.values()))
+      setRoleUsers(usersData || [])
     } catch (error) {
       console.error('Error al cargar detalles del rol:', error)
       setErrorMessage('No se pudieron cargar los detalles del rol.')
