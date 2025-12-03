@@ -29,5 +29,5 @@ dist-ssr
 *.sw?
 
 # Other
-supabase
-docs
+# supabase
+# docs
