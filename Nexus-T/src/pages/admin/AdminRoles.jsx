@@ -1,23 +1,37 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import SelectableTable from '../../components/admin/SelectableTable'
-import DetailPanel from '../../components/admin/DetailPanel'
+import SimpleTable from '../../components/data/SimpleTable'
+import DetailView from '../../components/data/DetailView'
+import ActionMenu from '../../components/data/ActionMenu'
+import Modal from '../../components/base/Modal'
+import Input from '../../components/forms/Input'
+import FormField from '../../components/forms/FormField'
+import FormRow from '../../components/forms/FormRow'
 import PageHeader from '../../components/layout/PageHeader'
 import Alert from '../../components/base/Alert'
 
 export default function AdminRoles() {
+  // Estados de datos
   const [roles, setRoles] = useState([])
   const [selectedRoleId, setSelectedRoleId] = useState(null)
   const [selectedRole, setSelectedRole] = useState(null)
   const [roleUsers, setRoleUsers] = useState([])
-  const [selectedUserId, setSelectedUserId] = useState(null)
-  const [selectedUser, setSelectedUser] = useState(null)
-  const [userRoles, setUserRoles] = useState([])
+  const [allUsers, setAllUsers] = useState([])
+  
+  // Estados de UI
   const [activeTab, setActiveTab] = useState('overview')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
+
+  // Estados para modales
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [showManageUsersModal, setShowManageUsersModal] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editingData, setEditingData] = useState({ name: '', description: '' })
+  const [usersSearch, setUsersSearch] = useState('')
+  const [selectedUsers, setSelectedUsers] = useState([])
 
   useEffect(() => {
     fetchRoles()
@@ -31,15 +45,6 @@ export default function AdminRoles() {
       setRoleUsers([])
     }
   }, [selectedRoleId])
-
-  useEffect(() => {
-    if (selectedUserId) {
-      fetchUserDetails(selectedUserId)
-    } else {
-      setSelectedUser(null)
-      setUserRoles([])
-    }
-  }, [selectedUserId])
 
   const fetchRoles = async () => {
     setLoading(true)
@@ -90,7 +95,7 @@ export default function AdminRoles() {
 
       if (usersError) throw usersError
 
-      // Normalizar datos (puede haber duplicados si un usuario tiene múltiples roles)
+      // Normalizar datos
       const usersMap = new Map()
       usersData?.forEach((item) => {
         if (item.user && !usersMap.has(item.user.user_id)) {
@@ -104,56 +109,57 @@ export default function AdminRoles() {
     }
   }
 
-  const fetchUserDetails = async (userId) => {
-    try {
-      // Obtener información del usuario
-      const { data: userData, error: userError } = await supabase
-        .from('user_profiles')
-        .select('id, user_id, first_name, last_name, email')
-        .eq('user_id', userId)
-        .single()
-
-      if (userError) throw userError
-      setSelectedUser(userData)
-
-      // Obtener roles del usuario
-      const { data: rolesData, error: rolesError } = await supabase
-        .from('user_roles')
-        .select(`
-          role_id,
-          role:roles!user_roles_role_id_fkey(
-            id,
-            name,
-            description
-          )
-        `)
-        .eq('user_id', userId)
-
-      if (rolesError) throw rolesError
-
-      const rolesList = rolesData?.map((item) => item.role).filter(Boolean) || []
-      setUserRoles(rolesList)
-    } catch (error) {
-      console.error('Error al cargar detalles del usuario:', error)
-      setErrorMessage('No se pudieron cargar los detalles del usuario.')
-    }
-  }
-
-  const handleSelectRole = (roleId) => {
-    setSelectedRoleId(roleId)
-    setSelectedUserId(null) // Limpiar selección de usuario
-    setActiveTab('overview')
-  }
-
-  const handleSelectUser = (userId) => {
-    setSelectedUserId(userId)
-    setSelectedRoleId(null) // Limpiar selección de rol
+  const handleSelect = (id) => {
+    setSelectedRoleId(id)
     setActiveTab('overview')
   }
 
   const handleEdit = (id) => {
-    // TODO: Implementar edición de rol
-    console.log('Editar rol:', id)
+    const role = roles.find((r) => r.id === id)
+    if (role) {
+      setEditingId(id)
+      setEditingData({
+        name: role.name || '',
+        description: role.description || '',
+      })
+      setShowEditModal(true)
+    }
+  }
+
+  const handleSave = async () => {
+    if (!editingId) return
+
+    setSubmitting(true)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+
+    try {
+      const { error } = await supabase
+        .from('roles')
+        .update({
+          name: editingData.name,
+          description: editingData.description,
+        })
+        .eq('id', editingId)
+
+      if (error) throw error
+
+      setSuccessMessage('Rol actualizado correctamente.')
+      setShowEditModal(false)
+      setEditingId(null)
+      setEditingData({ name: '', description: '' })
+      await fetchRoles()
+      
+      // Si es el rol seleccionado, actualizar detalles
+      if (selectedRoleId === editingId) {
+        await fetchRoleDetails(editingId)
+      }
+    } catch (error) {
+      console.error('Error al actualizar rol:', error)
+      setErrorMessage(error.message || 'No se pudo actualizar el rol.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   const handleDelete = async (id) => {
@@ -186,7 +192,109 @@ export default function AdminRoles() {
     }
   }
 
-  const roleTableColumns = [
+  // ========== Funciones para administración de usuarios ==========
+
+  const handleOpenManageUsers = async () => {
+    if (!selectedRoleId) return
+
+    setShowManageUsersModal(true)
+    setUsersSearch('')
+    setSelectedUsers([])
+
+    // Cargar todos los usuarios
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('id, user_id, first_name, last_name, email')
+        .order('first_name')
+
+      if (error) throw error
+      setAllUsers(data || [])
+
+      // Marcar usuarios ya asignados
+      const assignedUserIds = roleUsers.map((u) => u.user_id)
+      setSelectedUsers(assignedUserIds)
+    } catch (error) {
+      console.error('Error al cargar usuarios:', error)
+      setErrorMessage('No se pudieron cargar los usuarios.')
+    }
+  }
+
+  const handleCloseManageUsers = () => {
+    setShowManageUsersModal(false)
+    setUsersSearch('')
+    setSelectedUsers([])
+    setAllUsers([])
+  }
+
+  const handleToggleUser = (userId) => {
+    setSelectedUsers((prev) => {
+      if (prev.includes(userId)) {
+        return prev.filter((id) => id !== userId)
+      } else {
+        return [...prev, userId]
+      }
+    })
+  }
+
+  const handleSaveUsers = async () => {
+    if (!selectedRoleId) return
+
+    setSubmitting(true)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+
+    try {
+      // Obtener usuarios actuales
+      const { data: currentAssignments, error: fetchError } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role_id', selectedRoleId)
+
+      if (fetchError) throw fetchError
+
+      const currentUserIds = new Set((currentAssignments || []).map((a) => a.user_id))
+      const newUserIds = new Set(selectedUsers)
+
+      // Remover asignaciones eliminadas
+      for (const userId of currentUserIds) {
+        if (!newUserIds.has(userId)) {
+          const { error } = await supabase
+            .from('user_roles')
+            .delete()
+            .eq('role_id', selectedRoleId)
+            .eq('user_id', userId)
+
+          if (error) throw error
+        }
+      }
+
+      // Agregar nuevas asignaciones
+      for (const userId of selectedUsers) {
+        if (!currentUserIds.has(userId)) {
+          const { error } = await supabase
+            .from('user_roles')
+            .insert({
+              role_id: selectedRoleId,
+              user_id: userId,
+            })
+
+          if (error) throw error
+        }
+      }
+
+      setSuccessMessage('Usuarios actualizados correctamente.')
+      handleCloseManageUsers()
+      await fetchRoleDetails(selectedRoleId)
+    } catch (error) {
+      console.error('Error al actualizar usuarios:', error)
+      setErrorMessage(error.message || 'No se pudieron actualizar los usuarios.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const tableColumns = [
     {
       key: 'name',
       label: 'Nombre',
@@ -198,26 +306,9 @@ export default function AdminRoles() {
     },
   ]
 
-  const userTableColumns = [
-    {
-      key: 'first_name',
-      label: 'Nombre',
-      render: (value, row) => `${row.first_name || ''} ${row.last_name || ''}`.trim() || '-',
-    },
-    {
-      key: 'email',
-      label: 'Email',
-    },
-  ]
-
-  const roleTabs = [
+  const tabs = [
     { id: 'overview', label: 'Resumen' },
-    { id: 'users', label: 'Usuarios', badge: roleUsers.length },
-  ]
-
-  const userTabs = [
-    { id: 'overview', label: 'Resumen' },
-    { id: 'roles', label: 'Roles', badge: userRoles.length },
+    { id: 'users', label: 'Usuarios', badge: roleUsers.length > 0 ? roleUsers.length : undefined },
   ]
 
   return (
@@ -230,301 +321,321 @@ export default function AdminRoles() {
       {errorMessage && <Alert type="error" message={errorMessage} />}
       {successMessage && <Alert type="success" message={successMessage} />}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Panel izquierdo: Lista de roles */}
-        <div className="bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-gray-200 dark:border-slate-800 overflow-hidden">
-          <div className="p-4 border-b border-gray-200 dark:border-slate-700">
+      {/* Panel principal: Lista y Detalles (Layout vertical) */}
+      <div className="space-y-4">
+        {/* Tabla de roles */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               Roles ({roles.length})
             </h2>
-          </div>
-          <div className="p-4">
-            {loading ? (
-              <div className="text-center py-8">
-                <p className="text-gray-500 dark:text-gray-400">Cargando roles...</p>
-              </div>
-            ) : (
-              <SelectableTable
-                columns={roleTableColumns}
-                data={roles}
+            <div className="flex items-center gap-2">
+              <ActionMenu
                 selectedId={selectedRoleId}
-                onSelect={handleSelectRole}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                loading={submitting}
+                actions={[
+                  {
+                    label: 'Editar',
+                    icon: '✏️',
+                    onClick: (id) => handleEdit(id),
+                  },
+                  {
+                    label: 'Administrar Usuarios',
+                    icon: '👥',
+                    onClick: () => handleOpenManageUsers(),
+                  },
+                  {
+                    label: 'Eliminar',
+                    icon: '🗑️',
+                    variant: 'danger',
+                    onClick: (id) => handleDelete(id),
+                  },
+                ]}
+                disabled={submitting}
               />
-            )}
+            </div>
           </div>
+          
+          {loading ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500 dark:text-gray-400">Cargando roles...</p>
+            </div>
+          ) : (
+            <SimpleTable
+              columns={tableColumns}
+              data={roles}
+              selectedId={selectedRoleId}
+              onSelect={handleSelect}
+              loading={submitting}
+              maxHeight="500px"
+              collapsible={true}
+              title="Lista de Roles"
+              itemKey="id"
+            />
+          )}
         </div>
 
-        {/* Panel derecho: Detalles del rol o usuario seleccionado */}
-        <div>
-          {selectedRoleId ? (
-            <DetailPanel
-              title={selectedRole ? selectedRole.name : null}
-              breadcrumb={
-                selectedRole
-                  ? [
-                      { label: 'Roles', onClick: () => setSelectedRoleId(null) },
-                      { label: selectedRole.name },
-                    ]
-                  : null
-              }
-              tabs={selectedRole ? roleTabs : null}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              emptyMessage="Selecciona un rol para ver sus detalles"
-            >
-              {selectedRole && (
-                <>
-                  {activeTab === 'overview' && (
-                    <div className="space-y-4">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
+        {/* Detalles del rol seleccionado (debajo de la tabla) */}
+        {selectedRoleId && selectedRole ? (
+          <DetailView
+            selectedItem={selectedRole}
+            title={`Detalles: ${selectedRole.name}`}
+            tabs={tabs}
+            defaultTab={activeTab}
+            collapsible={true}
+            onCollapseChange={() => {}}
+            renderContent={(item, tab) => {
+              // Tab Resumen
+              if (tab === 'overview') {
+                return (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
                           Información del Rol
                         </h3>
                         <div className="space-y-2">
                           <div>
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                              Nombre:
-                            </span>{' '}
-                            <span className="text-sm text-gray-900 dark:text-white">
-                              {selectedRole.name}
-                            </span>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Nombre:</span>
+                            <p className="text-sm text-gray-900 dark:text-white mt-1">
+                              {item.name}
+                            </p>
                           </div>
-                          {selectedRole.description && (
-                            <div>
-                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Descripción:
-                              </span>{' '}
-                              <span className="text-sm text-gray-900 dark:text-white">
-                                {selectedRole.description}
-                              </span>
-                            </div>
-                          )}
+                          <div>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Descripción:</span>
+                            <p className="text-sm text-gray-900 dark:text-white mt-1">
+                              {item.description || '-'}
+                            </p>
+                          </div>
                         </div>
                       </div>
 
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">
                           Usuarios con este Rol ({roleUsers.length})
                         </h3>
-                        {roleUsers.length === 0 ? (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            No hay usuarios con este rol.
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            {roleUsers.map((user) => (
-                              <button
+                        {roleUsers.length > 0 ? (
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {roleUsers.slice(0, 5).map((user) => (
+                              <div
                                 key={user.user_id}
-                                onClick={() => handleSelectUser(user.user_id)}
-                                className="w-full text-left p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                className="p-2 bg-white dark:bg-gray-700 rounded text-sm"
                               >
-                                <div className="font-medium text-sm text-gray-900 dark:text-white">
+                                <div className="font-medium text-gray-900 dark:text-white">
                                   {user.first_name} {user.last_name}
                                 </div>
                                 {user.email && (
-                                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                  <div className="text-xs text-gray-600 dark:text-gray-400">
                                     {user.email}
                                   </div>
                                 )}
-                              </button>
+                              </div>
                             ))}
+                            {roleUsers.length > 5 && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                Y {roleUsers.length - 5} más...
+                              </p>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {activeTab === 'users' && (
-                    <div className="space-y-2">
-                      {roleUsers.length === 0 ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          No hay usuarios con este rol.
-                        </p>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead className="bg-gray-50 dark:bg-gray-800">
-                              <tr>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                                  Nombre
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                                  Email
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                                  Acción
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-gray-700">
-                              {roleUsers.map((user) => (
-                                <tr key={user.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                                  <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
-                                    {user.first_name} {user.last_name}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
-                                    {user.email || '-'}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm">
-                                    <button
-                                      onClick={() => handleSelectUser(user.user_id)}
-                                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
-                                    >
-                                      Ver roles
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </DetailPanel>
-          ) : selectedUserId ? (
-            <DetailPanel
-              title={selectedUser ? `${selectedUser.first_name} ${selectedUser.last_name}` : null}
-              breadcrumb={
-                selectedUser
-                  ? [
-                      { label: 'Roles', onClick: () => setSelectedUserId(null) },
-                      { label: `${selectedUser.first_name} ${selectedUser.last_name}` },
-                    ]
-                  : null
-              }
-              tabs={selectedUser ? userTabs : null}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              emptyMessage="Selecciona un usuario para ver sus roles"
-            >
-              {selectedUser && (
-                <>
-                  {activeTab === 'overview' && (
-                    <div className="space-y-4">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                          Información del Usuario
-                        </h3>
-                        <div className="space-y-2">
-                          <div>
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                              Nombre:
-                            </span>{' '}
-                            <span className="text-sm text-gray-900 dark:text-white">
-                              {selectedUser.first_name} {selectedUser.last_name}
-                            </span>
-                          </div>
-                          {selectedUser.email && (
-                            <div>
-                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                                Email:
-                              </span>{' '}
-                              <span className="text-sm text-gray-900 dark:text-white">
-                                {selectedUser.email}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                          Roles Asignados ({userRoles.length})
-                        </h3>
-                        {userRoles.length === 0 ? (
-                          <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Este usuario no tiene roles asignados.
-                          </p>
                         ) : (
-                          <div className="space-y-2">
-                            {userRoles.map((role) => (
-                              <button
-                                key={role.id}
-                                onClick={() => handleSelectRole(role.id)}
-                                className="w-full text-left p-3 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                              >
-                                <div className="font-medium text-sm text-gray-900 dark:text-white">
-                                  {role.name}
-                                </div>
-                                {role.description && (
-                                  <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                    {role.description}
-                                  </div>
-                                )}
-                              </button>
-                            ))}
-                          </div>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            No hay usuarios con este rol.
+                          </p>
                         )}
                       </div>
                     </div>
-                  )}
+                  </div>
+                )
+              }
 
-                  {activeTab === 'roles' && (
-                    <div className="space-y-2">
-                      {userRoles.length === 0 ? (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Este usuario no tiene roles asignados.
-                        </p>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                            <thead className="bg-gray-50 dark:bg-gray-800">
-                              <tr>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                                  Rol
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                                  Descripción
-                                </th>
-                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                                  Acción
-                                </th>
+              // Tab Usuarios
+              if (tab === 'users') {
+                return (
+                  <div className="space-y-2">
+                    {roleUsers.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        No hay usuarios con este rol.
+                      </p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          <thead className="bg-gray-50 dark:bg-gray-800">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                Nombre
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                Email
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-gray-700">
+                            {roleUsers.map((user) => (
+                              <tr key={user.user_id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                  {user.first_name} {user.last_name}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                  {user.email || '-'}
+                                </td>
                               </tr>
-                            </thead>
-                            <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-gray-700">
-                              {userRoles.map((role) => (
-                                <tr key={role.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                                  <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
-                                    {role.name}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
-                                    {role.description || '-'}
-                                  </td>
-                                  <td className="px-4 py-2 text-sm">
-                                    <button
-                                      onClick={() => handleSelectRole(role.id)}
-                                      className="text-blue-600 dark:text-blue-400 hover:underline text-xs"
-                                    >
-                                      Ver usuarios
-                                    </button>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </DetailPanel>
-          ) : (
-            <DetailPanel emptyMessage="Selecciona un rol o usuario para ver sus detalles" />
-          )}
-        </div>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )
+              }
+
+              return null
+            }}
+          />
+        ) : null}
       </div>
+
+      {/* Modal de Editar Rol */}
+      {showEditModal && editingId && (
+        <Modal
+          isOpen={showEditModal}
+          onClose={() => {
+            setShowEditModal(false)
+            setEditingId(null)
+          }}
+          title="Editar Rol"
+          size="lg"
+        >
+          <div className="space-y-4">
+            <FormRow columns={1}>
+              <FormField label="Nombre" htmlFor="edit_name" required>
+                <Input
+                  type="text"
+                  name="edit_name"
+                  value={editingData.name}
+                  onChange={(e) => setEditingData({ ...editingData, name: e.target.value })}
+                  required
+                />
+              </FormField>
+            </FormRow>
+            <FormRow columns={1}>
+              <FormField label="Descripción" htmlFor="edit_description">
+                <Input
+                  type="text"
+                  name="edit_description"
+                  value={editingData.description}
+                  onChange={(e) => setEditingData({ ...editingData, description: e.target.value })}
+                />
+              </FormField>
+            </FormRow>
+            <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-slate-700">
+              <button
+                onClick={handleSave}
+                disabled={submitting}
+                className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {submitting ? 'Guardando...' : 'Guardar'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowEditModal(false)
+                  setEditingId(null)
+                }}
+                disabled={submitting}
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal de Administrar Usuarios */}
+      <Modal
+        isOpen={showManageUsersModal}
+        onClose={handleCloseManageUsers}
+        title="Administrar Usuarios"
+        size="lg"
+      >
+        <div className="space-y-4">
+          {/* Búsqueda */}
+          <FormField label="Buscar Usuario" htmlFor="users_search">
+            <Input
+              type="text"
+              name="users_search"
+              value={usersSearch}
+              onChange={(e) => setUsersSearch(e.target.value)}
+              placeholder="Buscar por nombre o email..."
+            />
+          </FormField>
+
+          {/* Lista de usuarios */}
+          <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-slate-700 rounded-lg p-3 space-y-2">
+            {allUsers
+              .filter((user) => {
+                if (!usersSearch) return true
+                const search = usersSearch.toLowerCase()
+                const name = `${user.first_name} ${user.last_name}`.toLowerCase()
+                const email = (user.email || '').toLowerCase()
+                return name.includes(search) || email.includes(search)
+              })
+              .map((user) => {
+                const isSelected = selectedUsers.includes(user.user_id)
+
+                return (
+                  <div
+                    key={user.user_id}
+                    className={`p-3 border rounded-lg ${
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
+                        : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    <label className="flex items-center space-x-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleToggleUser(user.user_id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-sm text-gray-900 dark:text-white">
+                          {user.first_name} {user.last_name}
+                        </div>
+                        {user.email && (
+                          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                            {user.email}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+                  </div>
+                )
+              })}
+            {allUsers.length === 0 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                No hay usuarios disponibles.
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={handleSaveUsers}
+              disabled={submitting}
+              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
+            >
+              {submitting ? 'Guardando...' : 'Guardar'}
+            </button>
+            <button
+              onClick={handleCloseManageUsers}
+              disabled={submitting}
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
-
-
-
-
-
