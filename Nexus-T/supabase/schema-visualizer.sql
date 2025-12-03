@@ -19,6 +19,7 @@ CREATE TABLE public.groups (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   section text,
+  shift text,
   CONSTRAINT groups_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.incident_observations (
