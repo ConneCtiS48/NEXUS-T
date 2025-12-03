@@ -6,9 +6,10 @@ export default function AdminLayout() {
   const adminMenuItems = [
     { path: '/admin', label: 'Dashboard', icon: '📊' },
     { path: '/admin/users', label: 'Usuarios', icon: '👥' },
-    { path: '/admin/groups', label: 'Grupos', icon: '👨‍👩‍👧‍👦' },
-    { path: '/admin/subjects', label: 'Asignaturas', icon: '📚' },
     { path: '/admin/roles', label: 'Roles', icon: '🔐' },
+    { path: '/admin/groups', label: 'Grupos', icon: '👨‍👩‍👧‍👦' },
+    { path: '/admin/students', label: 'Alumnos', icon: '🎓' },
+    { path: '/admin/subjects', label: 'Asignaturas', icon: '📚' },
   ]
 
   return (
