@@ -105,14 +105,14 @@ export default function AdminGroups() {
   const handleEdit = (id) => {
     const group = groups.find((g) => g.id === id)
     if (group) {
-      setEditingId(id)
+    setEditingId(id)
       setEditingData({
         grade: group.grade || '',
         specialty: group.specialty || '',
         nomenclature: group.nomenclature || '',
         section: group.section || '',
       })
-      setShowEditModal(true)
+    setShowEditModal(true)
     }
   }
 
