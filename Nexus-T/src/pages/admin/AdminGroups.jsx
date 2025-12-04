@@ -74,7 +74,7 @@ export default function AdminGroups() {
   const [studentsSearch, setStudentsSearch] = useState('')
   const [selectedTeachers, setSelectedTeachers] = useState([])
   const [selectedTutorId, setSelectedTutorId] = useState(null)
-  const [selectedSubjects, setSelectedSubjects] = useState([])
+  const [subjectAssignments, setSubjectAssignments] = useState([]) // Array de {subjectId, teacherId}
   const [selectedStudents, setSelectedStudents] = useState([])
   const [selectedGroupLeaderId, setSelectedGroupLeaderId] = useState(null)
 
@@ -257,41 +257,63 @@ export default function AdminGroups() {
 
     setShowManageSubjectsModal(true)
     setSubjectsSearch('')
-    setSelectedSubjects([])
+    setSubjectAssignments([])
 
     // Cargar asignaturas disponibles
     await fetchAllSubjects()
 
-    // Cargar asignaturas actuales del grupo
-    const currentSubjectIds = groupSubjects.map((s) => s.id)
-    setSelectedSubjects(currentSubjectIds)
+    // Cargar asignaturas actuales del grupo con sus docentes
+    // Por ahora asumimos que el docente es el tutor, pero esto se puede mejorar
+    // consultando teacher_group_subjects para obtener el teacher_id real
+    const currentAssignments = groupSubjects.map((s) => ({
+      subjectId: s.id,
+      teacherId: groupTutor?.user_id || '', // Usar tutor por defecto
+    }))
+    setSubjectAssignments(currentAssignments)
   }
 
   const handleCloseManageSubjects = () => {
     setShowManageSubjectsModal(false)
     setSubjectsSearch('')
-    setSelectedSubjects([])
+    setSubjectAssignments([])
   }
 
   const handleToggleSubject = (subjectId) => {
-    setSelectedSubjects((prev) => {
-      if (prev.includes(subjectId)) {
-        return prev.filter((id) => id !== subjectId)
-      } else {
-        return [...prev, subjectId]
-      }
-    })
+    const exists = subjectAssignments.find((a) => a.subjectId === subjectId)
+    if (exists) {
+      // Remover
+      setSubjectAssignments((prev) => prev.filter((a) => a.subjectId !== subjectId))
+    } else {
+      // Agregar con docente vacío
+      setSubjectAssignments((prev) => [...prev, { subjectId, teacherId: '' }])
+    }
+  }
+
+  const handleChangeSubjectTeacher = (subjectId, teacherId) => {
+    setSubjectAssignments((prev) =>
+      prev.map((a) => (a.subjectId === subjectId ? { ...a, teacherId } : a))
+    )
   }
 
   const handleSaveSubjects = async () => {
     if (!selectedGroupId) return
+
+    // Validar que todas las asignaturas tengan docente
+    const missingTeacher = subjectAssignments.find((a) => !a.teacherId)
+    if (missingTeacher) {
+      setErrorMessage('Todas las asignaturas deben tener un docente asignado.')
+      return
+    }
 
     setSubmitting(true)
     setErrorMessage(null)
     setSuccessMessage(null)
 
     try {
-      const result = await updateGroupSubjects(selectedGroupId, selectedSubjects)
+      // Obtener shift del grupo seleccionado
+      const groupShift = selectedGroup?.shift || 'M'
+      
+      const result = await updateGroupSubjects(selectedGroupId, subjectAssignments, groupShift)
       if (result.success) {
         setSuccessMessage('Asignaturas actualizadas correctamente.')
         handleCloseManageSubjects()
@@ -1042,23 +1064,30 @@ export default function AdminGroups() {
                 return name.includes(search)
               })
               .map((subject) => {
-                const isSelected = selectedSubjects.includes(subject.id)
+                const assignment = subjectAssignments.find((a) => a.subjectId === subject.id)
+                const isSelected = !!assignment
+
+                // Obtener lista de docentes del grupo (tutor + otros docentes)
+                const groupTeachersList = [
+                  ...(groupTutor ? [{ user_id: groupTutor.user_id, name: `${groupTutor.first_name} ${groupTutor.last_name} (Tutor)` }] : []),
+                  ...groupTeachers.map((t) => ({ user_id: t.user_id, name: `${t.first_name} ${t.last_name}` })),
+                ]
 
                 return (
                   <div
                     key={subject.id}
-                    className={`p-3 border rounded-lg ${
+                    className={`border rounded-lg p-4 ${
                       isSelected
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
-                        : 'border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                        : 'border-gray-200 dark:border-slate-700'
                     }`}
                   >
-                    <label className="flex items-center space-x-3 cursor-pointer">
+                    <label className="flex items-start space-x-3 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => handleToggleSubject(subject.id)}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        className="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                       <div className="flex-1">
                         <div className="font-medium text-sm text-gray-900 dark:text-white">
@@ -1069,6 +1098,31 @@ export default function AdminGroups() {
                             {subject.category_type && subject.category_name
                               ? `${subject.category_type} - ${subject.category_name}`
                               : subject.category_type || subject.category_name}
+                          </div>
+                        )}
+
+                        {/* Select de docente (solo si está seleccionada) */}
+                        {isSelected && (
+                          <div className="mt-3">
+                            <FormField label="Docente que impartirá esta asignatura" htmlFor={`teacher_${subject.id}`}>
+                              <Select
+                                name={`teacher_${subject.id}`}
+                                value={assignment?.teacherId || ''}
+                                onChange={(e) => handleChangeSubjectTeacher(subject.id, e.target.value)}
+                                options={[
+                                  { value: '', label: 'Seleccionar docente...' },
+                                  ...groupTeachersList.map((teacher) => ({
+                                    value: teacher.user_id,
+                                    label: teacher.name,
+                                  })),
+                                ]}
+                              />
+                            </FormField>
+                            {groupTeachersList.length === 0 && (
+                              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                                ⚠️ Este grupo no tiene docentes asignados
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>

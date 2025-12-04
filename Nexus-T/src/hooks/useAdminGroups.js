@@ -246,14 +246,17 @@ export function useAdminGroups() {
   }, [fetchGroupDetails])
 
   // Actualizar asignaturas del grupo
-  const updateGroupSubjects = useCallback(async (groupId, subjectIds) => {
+  const updateGroupSubjects = useCallback(async (groupId, subjectAssignments, groupShift) => {
     try {
+      // subjectAssignments es array de {subjectId, teacherId}
+      
       // Obtener asignaturas actuales del grupo
       const { data: currentSubjectIds, error: fetchError } = await groupsService.fetchSubjectIds(groupId)
       if (fetchError) throw fetchError
 
       const currentIds = new Set(currentSubjectIds || [])
-      const newIds = new Set(subjectIds)
+      const newAssignments = subjectAssignments || []
+      const newIds = new Set(newAssignments.map((a) => a.subjectId))
 
       // Remover asignaturas que ya no están en la lista
       for (const subjectId of currentIds) {
@@ -262,11 +265,18 @@ export function useAdminGroups() {
         }
       }
 
-      // Agregar nuevas asignaturas
-      for (const subjectId of subjectIds) {
-        if (!currentIds.has(subjectId)) {
-          await groupsService.assignSubjectToGroup(groupId, subjectId)
+      // Agregar o actualizar asignaturas
+      for (const assignment of newAssignments) {
+        if (!currentIds.has(assignment.subjectId)) {
+          // Nueva asignación - usar shift del grupo
+          await groupsService.assignSubjectToGroup(
+            groupId,
+            assignment.subjectId,
+            assignment.teacherId,
+            groupShift || 'M'
+          )
         }
+        // Si ya existe, podríamos actualizar el docente aquí si es necesario
       }
 
       // Refrescar detalles del grupo
