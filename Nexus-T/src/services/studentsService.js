@@ -146,16 +146,42 @@ export const studentsService = {
 
     if (existing) {
       // Si ya está en un grupo, actualizar
-      const { data, error } = await supabase
-        .from('group_members')
-        .update({
-          group_id: groupId,
-          is_group_leader: isGroupLeader,
-        })
-        .eq('id', existing.id)
-        .select('id, group_id, student_id, is_group_leader')
-        .single()
-      return { data, error }
+      // Si el grupo es el mismo, solo actualizar is_group_leader
+      if (existing.group_id === groupId) {
+        const { data, error } = await supabase
+          .from('group_members')
+          .update({
+            is_group_leader: isGroupLeader,
+          })
+          .eq('id', existing.id)
+          .select('id, group_id, student_id, is_group_leader')
+          .maybeSingle()
+        return { data, error }
+      } else {
+        // Si cambia de grupo, actualizar grupo y is_group_leader
+        const { data, error } = await supabase
+          .from('group_members')
+          .update({
+            group_id: groupId,
+            is_group_leader: isGroupLeader,
+          })
+          .eq('id', existing.id)
+          .select('id, group_id, student_id, is_group_leader')
+          .maybeSingle()
+        
+        // Si no hay datos pero tampoco hay error, puede ser un problema de permisos
+        if (!data && !error) {
+          return { 
+            data: null, 
+            error: { 
+              message: 'No se pudo actualizar el grupo del estudiante. Verifica que tengas permisos para modificarlo.',
+              code: 'UPDATE_FAILED'
+            } 
+          }
+        }
+        
+        return { data, error }
+      }
     } else {
       // Si no está en ningún grupo, insertar
       const { data, error } = await supabase
@@ -166,7 +192,19 @@ export const studentsService = {
           is_group_leader: isGroupLeader,
         })
         .select('id, group_id, student_id, is_group_leader')
-        .single()
+        .maybeSingle()
+      
+      // Si no hay datos pero tampoco hay error, puede ser un problema de permisos
+      if (!data && !error) {
+        return { 
+          data: null, 
+          error: { 
+            message: 'No se pudo asignar el estudiante al grupo. Verifica que tengas permisos para realizar esta acción.',
+            code: 'INSERT_FAILED'
+          } 
+        }
+      }
+      
       return { data, error }
     }
   },

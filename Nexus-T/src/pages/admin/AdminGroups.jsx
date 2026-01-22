@@ -77,6 +77,7 @@ export default function AdminGroups() {
   const [subjectAssignments, setSubjectAssignments] = useState([]) // Array de {subjectId, teacherId}
   const [selectedStudents, setSelectedStudents] = useState([])
   const [selectedGroupLeaderId, setSelectedGroupLeaderId] = useState(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   // Sincronizar error del hook con errorMessage de UI
   useEffect(() => {
@@ -85,14 +86,14 @@ export default function AdminGroups() {
     }
   }, [error])
 
-  // Cargar detalles cuando se selecciona un grupo
+  // Cargar detalles cuando se selecciona un grupo o cuando se fuerza actualización
   useEffect(() => {
     if (selectedGroupId) {
       fetchGroupDetails(selectedGroupId)
     } else {
       clearSelection()
     }
-  }, [selectedGroupId, fetchGroupDetails, clearSelection])
+  }, [selectedGroupId, fetchGroupDetails, clearSelection, refreshKey])
 
   const handleSelect = (id) => {
     const group = groups.find((g) => g.id === id)
@@ -123,6 +124,8 @@ export default function AdminGroups() {
       nomenclature: '',
       section: '',
     })
+    setErrorMessage(null)
+    setSuccessMessage(null)
     setShowCreateModal(true)
   }
 
@@ -136,14 +139,36 @@ export default function AdminGroups() {
       const result = await createGroup(formData)
       if (result.success) {
         setSuccessMessage('Grupo creado correctamente.')
-        setShowCreateModal(false)
-        setFormData({ grade: '', specialty: '', nomenclature: '', section: '' })
+        // Esperar un momento para mostrar el mensaje de éxito
+        setTimeout(() => {
+          setShowCreateModal(false)
+          setFormData({ grade: '', specialty: '', nomenclature: '', section: '' })
+          setErrorMessage(null)
+          setSuccessMessage(null)
+        }, 1500)
       } else {
-        setErrorMessage(result.error?.message || 'No se pudo crear el grupo.')
+        // Extraer mensaje de error más descriptivo
+        const errorMsg = result.error?.message || result.error?.hint || 'No se pudo crear el grupo.'
+        let displayMessage = errorMsg
+        
+        // Si el error menciona políticas RLS, proporcionar un mensaje más claro
+        if (errorMsg.includes('policy') || errorMsg.includes('violates') || errorMsg.includes('RLS')) {
+          displayMessage = 'No tienes permisos para crear grupos. Necesitas tener el rol "admin" para realizar esta acción. Verifica que tu usuario tenga asignado el rol "admin" en la base de datos.'
+        }
+        
+        setErrorMessage(displayMessage)
       }
     } catch (err) {
       console.error('Error al crear grupo:', err)
-      setErrorMessage('No se pudo crear el grupo.')
+      let displayMessage = 'No se pudo crear el grupo.'
+      if (err.message) {
+        if (err.message.includes('policy') || err.message.includes('violates') || err.message.includes('RLS')) {
+          displayMessage = 'No tienes permisos para crear grupos. Necesitas tener el rol "admin" para realizar esta acción. Verifica que tu usuario tenga asignado el rol "admin" en la base de datos.'
+        } else {
+          displayMessage = err.message
+        }
+      }
+      setErrorMessage(displayMessage)
     } finally {
       setSubmitting(false)
     }
@@ -158,16 +183,43 @@ export default function AdminGroups() {
       const result = await updateGroup(id, editingData)
       if (result.success) {
         setSuccessMessage('Grupo actualizado correctamente.')
-        setShowEditModal(false)
-        setEditingId(null)
-        setEditingData({ grade: '', specialty: '', nomenclature: '', section: '' })
+        // Esperar un momento para que el usuario vea el mensaje de éxito
+        setTimeout(() => {
+          setShowEditModal(false)
+          setEditingId(null)
+          setEditingData({ grade: '', specialty: '', nomenclature: '', section: '' })
+          setErrorMessage(null)
+          setSuccessMessage(null)
+          setSubmitting(false)
+        }, 1500)
       } else {
-        setErrorMessage(result.error?.message || 'No se pudo actualizar el grupo.')
+        // Extraer mensaje de error más descriptivo
+        const errorMsg = result.error?.message || result.error?.hint || 'No se pudo actualizar el grupo.'
+        let displayMessage = errorMsg
+        
+        // Si el error menciona "single JSON object", proporcionar un mensaje más claro
+        if (errorMsg.includes('single JSON object') || errorMsg.includes('PGRST116')) {
+          displayMessage = 'Error al actualizar el grupo. Verifica que el grupo exista y que tengas permisos para modificarlo.'
+        } else if (errorMsg.includes('policy') || errorMsg.includes('violates') || errorMsg.includes('RLS') || errorMsg.includes('insufficient_privilege') || errorMsg.includes('permission denied')) {
+          displayMessage = 'No tienes permisos para actualizar grupos. Necesitas tener el rol "admin" para realizar esta acción. Verifica que tu usuario tenga asignado el rol "admin" en la base de datos.'
+        }
+        
+        setErrorMessage(displayMessage)
+        setSubmitting(false)
       }
     } catch (err) {
       console.error('Error al actualizar grupo:', err)
-      setErrorMessage('No se pudo actualizar el grupo.')
-    } finally {
+      let displayMessage = 'No se pudo actualizar el grupo.'
+      if (err.message) {
+        if (err.message.includes('single JSON object') || err.message.includes('PGRST116')) {
+          displayMessage = 'Error al actualizar el grupo. Verifica que el grupo exista y que tengas permisos para modificarlo.'
+        } else if (err.message.includes('policy') || err.message.includes('violates') || err.message.includes('RLS') || err.message.includes('insufficient_privilege') || err.message.includes('permission denied')) {
+          displayMessage = 'No tienes permisos para actualizar grupos. Necesitas tener el rol "admin" para realizar esta acción. Verifica que tu usuario tenga asignado el rol "admin" en la base de datos.'
+        } else {
+          displayMessage = err.message
+        }
+      }
+      setErrorMessage(displayMessage)
       setSubmitting(false)
     }
   }
@@ -201,6 +253,8 @@ export default function AdminGroups() {
     setTeachersSearch('')
     setSelectedTeachers([])
     setSelectedTutorId(null)
+    setErrorMessage(null)
+    setSuccessMessage(null)
   }
 
   const handleToggleTeacher = (teacherId) => {
@@ -276,6 +330,8 @@ export default function AdminGroups() {
     setShowManageSubjectsModal(false)
     setSubjectsSearch('')
     setSubjectAssignments([])
+    setErrorMessage(null)
+    setSuccessMessage(null)
   }
 
   const handleToggleSubject = (subjectId) => {
@@ -355,6 +411,8 @@ export default function AdminGroups() {
     setStudentsSearch('')
     setSelectedStudents([])
     setSelectedGroupLeaderId(null)
+    setErrorMessage(null)
+    setSuccessMessage(null)
   }
 
   const handleToggleStudent = (studentId) => {
@@ -392,14 +450,45 @@ export default function AdminGroups() {
       )
       if (result.success) {
         setSuccessMessage('Alumnos actualizados correctamente.')
-        handleCloseManageStudents()
+        // Forzar actualización de la vista refrescando los detalles del grupo
+        // Esperar un momento para que el usuario vea el mensaje de éxito
+        setTimeout(async () => {
+          try {
+            // Forzar actualización completa de los detalles del grupo
+            await fetchGroupDetails(selectedGroupId)
+            // Forzar re-render del componente usando refreshKey
+            setRefreshKey(prev => prev + 1)
+          } catch (err) {
+            console.error('Error al refrescar detalles:', err)
+          } finally {
+            setSubmitting(false)
+            handleCloseManageStudents()
+          }
+        }, 1000)
       } else {
-        setErrorMessage(result.error?.message || 'No se pudieron actualizar los alumnos.')
+        // Extraer mensaje de error más descriptivo
+        const errorMsg = result.error?.message || result.error?.hint || 'No se pudieron actualizar los alumnos.'
+        let displayMessage = errorMsg
+        
+        // Si el error menciona políticas RLS, proporcionar un mensaje más claro
+        if (errorMsg.includes('policy') || errorMsg.includes('violates') || errorMsg.includes('RLS')) {
+          displayMessage = 'No tienes permisos para modificar los alumnos del grupo. Necesitas tener el rol "admin" para realizar esta acción. Verifica que tu usuario tenga asignado el rol "admin" en la base de datos.'
+        }
+        
+        setErrorMessage(displayMessage)
+        setSubmitting(false)
       }
     } catch (err) {
       console.error('Error al actualizar alumnos:', err)
-      setErrorMessage('No se pudieron actualizar los alumnos.')
-    } finally {
+      let displayMessage = 'No se pudieron actualizar los alumnos.'
+      if (err.message) {
+        if (err.message.includes('policy') || err.message.includes('violates') || err.message.includes('RLS')) {
+          displayMessage = 'No tienes permisos para modificar los alumnos del grupo. Necesitas tener el rol "admin" para realizar esta acción. Verifica que tu usuario tenga asignado el rol "admin" en la base de datos.'
+        } else {
+          displayMessage = err.message
+        }
+      }
+      setErrorMessage(displayMessage)
       setSubmitting(false)
     }
   }
@@ -766,11 +855,17 @@ export default function AdminGroups() {
       {/* Modal de Crear Grupo */}
       <Modal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => {
+          setShowCreateModal(false)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+        }}
         title="Crear Nuevo Grupo"
         size="lg"
       >
         <form onSubmit={handleCreate} className="space-y-4">
+          {errorMessage && <Alert type="error" message={errorMessage} />}
+          {successMessage && <Alert type="success" message={successMessage} />}
           <FormRow columns={2}>
             <FormField label="Grado" htmlFor="grade" required>
               <Input
@@ -824,7 +919,11 @@ export default function AdminGroups() {
             </button>
             <button
               type="button"
-              onClick={() => setShowCreateModal(false)}
+              onClick={() => {
+                setShowCreateModal(false)
+                setErrorMessage(null)
+                setSuccessMessage(null)
+              }}
               disabled={submitting}
               className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
             >
@@ -863,11 +962,15 @@ export default function AdminGroups() {
           onClose={() => {
             setShowEditModal(false)
             setEditingId(null)
+            setErrorMessage(null)
+            setSuccessMessage(null)
           }}
           title="Editar Grupo"
           size="lg"
         >
           <div className="space-y-4">
+            {errorMessage && <Alert type="error" message={errorMessage} />}
+            {successMessage && <Alert type="success" message={successMessage} />}
             <FormRow columns={2}>
               <FormField label="Grado" htmlFor="edit_grade" required>
                 <Input
@@ -1164,6 +1267,8 @@ export default function AdminGroups() {
         size="lg"
       >
         <div className="space-y-4">
+          {errorMessage && <Alert type="error" message={errorMessage} />}
+          {successMessage && <Alert type="success" message={successMessage} />}
           {/* Búsqueda */}
           <FormField label="Buscar Alumno" htmlFor="students_search">
             <Input

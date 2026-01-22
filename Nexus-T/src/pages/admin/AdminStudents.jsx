@@ -60,6 +60,7 @@ export default function AdminStudents() {
   const [showManageGroupModal, setShowManageGroupModal] = useState(false)
   const [selectedGroupId, setSelectedGroupId] = useState('')
   const [isGroupLeader, setIsGroupLeader] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   // Sincronizar error del hook con errorMessage de UI
   useEffect(() => {
@@ -68,14 +69,14 @@ export default function AdminStudents() {
     }
   }, [error])
 
-  // Cargar detalles cuando se selecciona un estudiante
+  // Cargar detalles cuando se selecciona un estudiante o cuando se fuerza actualización
   useEffect(() => {
     if (selectedStudentId) {
       fetchStudentDetails(selectedStudentId)
     } else {
       clearSelection()
     }
-  }, [selectedStudentId, fetchStudentDetails, clearSelection])
+  }, [selectedStudentId, fetchStudentDetails, clearSelection, refreshKey])
 
   const handleSelect = (id) => {
     setSelectedStudentId(id)
@@ -84,6 +85,8 @@ export default function AdminStudents() {
 
   const handleOpenCreateModal = () => {
     setFormData(INITIAL_FORM)
+    setErrorMessage(null)
+    setSuccessMessage(null)
     setShowCreateModal(true)
   }
 
@@ -97,8 +100,13 @@ export default function AdminStudents() {
       const result = await createStudent(formData)
       if (result.success) {
         setSuccessMessage('Alumno creado correctamente.')
-        setShowCreateModal(false)
-        setFormData(INITIAL_FORM)
+        // Esperar un momento para que el usuario vea el mensaje de éxito
+        setTimeout(() => {
+          setShowCreateModal(false)
+          setFormData(INITIAL_FORM)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+        }, 1500)
       } else {
         setErrorMessage(result.error?.message || 'No se pudo crear el alumno.')
       }
@@ -125,6 +133,8 @@ export default function AdminStudents() {
         contact_phone: student.contact_phone || '',
         contact_type: student.contact_type || '',
       })
+      setErrorMessage(null)
+      setSuccessMessage(null)
       setShowEditModal(true)
     }
   }
@@ -140,9 +150,14 @@ export default function AdminStudents() {
       const result = await updateStudent(editingId, editingData)
       if (result.success) {
         setSuccessMessage('Alumno actualizado correctamente.')
-        setShowEditModal(false)
-        setEditingId(null)
-        setEditingData(INITIAL_FORM)
+        // Esperar un momento para que el usuario vea el mensaje de éxito
+        setTimeout(() => {
+          setShowEditModal(false)
+          setEditingId(null)
+          setEditingData(INITIAL_FORM)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+        }, 1500)
       } else {
         setErrorMessage(result.error?.message || 'No se pudo actualizar el alumno.')
       }
@@ -185,6 +200,8 @@ export default function AdminStudents() {
     setShowManageGroupModal(true)
     setSelectedGroupId('')
     setIsGroupLeader(false)
+    setErrorMessage(null)
+    setSuccessMessage(null)
 
     // Cargar grupos disponibles
     await fetchAllGroups()
@@ -200,34 +217,10 @@ export default function AdminStudents() {
     setShowManageGroupModal(false)
     setSelectedGroupId('')
     setIsGroupLeader(false)
-  }
-
-  const handleSaveGroup = async () => {
-    if (!selectedStudentId) return
-
-    setSubmitting(true)
     setErrorMessage(null)
     setSuccessMessage(null)
-
-    try {
-      const result = await updateStudentGroup(
-        selectedStudentId,
-        selectedGroupId,
-        isGroupLeader
-      )
-      if (result.success) {
-        setSuccessMessage('Grupo actualizado correctamente.')
-        handleCloseManageGroup()
-      } else {
-        setErrorMessage(result.error?.message || 'No se pudo actualizar el grupo.')
-      }
-    } catch (err) {
-      console.error('Error al actualizar grupo:', err)
-      setErrorMessage('No se pudo actualizar el grupo.')
-    } finally {
-      setSubmitting(false)
-    }
   }
+
 
   const tableColumns = [
     {
@@ -473,11 +466,17 @@ export default function AdminStudents() {
       {/* Modal de Crear Alumno */}
       <Modal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        onClose={() => {
+          setShowCreateModal(false)
+          setErrorMessage(null)
+          setSuccessMessage(null)
+        }}
         title="Crear Nuevo Alumno"
         size="lg"
       >
         <form onSubmit={handleCreate} className="space-y-4">
+          {errorMessage && <Alert type="error" message={errorMessage} />}
+          {successMessage && <Alert type="success" message={successMessage} />}
           <FormRow columns={2}>
             <FormField label="Número de Control" htmlFor="control_number" required>
               <Input
@@ -589,7 +588,11 @@ export default function AdminStudents() {
             </button>
             <button
               type="button"
-              onClick={() => setShowCreateModal(false)}
+              onClick={() => {
+                setShowCreateModal(false)
+                setErrorMessage(null)
+                setSuccessMessage(null)
+              }}
               disabled={submitting}
               className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
             >
@@ -606,11 +609,15 @@ export default function AdminStudents() {
           onClose={() => {
             setShowEditModal(false)
             setEditingId(null)
+            setErrorMessage(null)
+            setSuccessMessage(null)
           }}
           title="Editar Alumno"
           size="lg"
         >
           <div className="space-y-4">
+            {errorMessage && <Alert type="error" message={errorMessage} />}
+            {successMessage && <Alert type="success" message={successMessage} />}
             <FormRow columns={2}>
               <FormField label="Número de Control" htmlFor="edit_control_number" required>
                 <Input
@@ -716,6 +723,8 @@ export default function AdminStudents() {
                 onClick={() => {
                   setShowEditModal(false)
                   setEditingId(null)
+                  setErrorMessage(null)
+                  setSuccessMessage(null)
                 }}
                 disabled={submitting}
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
@@ -735,11 +744,51 @@ export default function AdminStudents() {
         size="md"
       >
         <div className="space-y-4">
+          {errorMessage && <Alert type="error" message={errorMessage} />}
+          {successMessage && <Alert type="success" message={successMessage} />}
           <FormField label="Grupo" htmlFor="group_select">
             <Select
               name="group_select"
               value={selectedGroupId}
-              onChange={(e) => setSelectedGroupId(e.target.value)}
+              onChange={async (e) => {
+                const newGroupId = e.target.value
+                setSelectedGroupId(newGroupId)
+                
+                // Actualizar inmediatamente en la base de datos
+                if (selectedStudentId) {
+                  try {
+                    setSubmitting(true)
+                    setErrorMessage(null)
+                    const result = await updateStudentGroup(
+                      selectedStudentId,
+                      newGroupId,
+                      isGroupLeader
+                    )
+                    if (result.success) {
+                      setSuccessMessage('Grupo actualizado correctamente.')
+                      // Refrescar detalles después de un momento
+                      setTimeout(async () => {
+                        try {
+                          await fetchStudentDetails(selectedStudentId)
+                          setRefreshKey(prev => prev + 1)
+                          setSuccessMessage(null)
+                        } catch (err) {
+                          console.error('Error al refrescar detalles:', err)
+                        } finally {
+                          setSubmitting(false)
+                        }
+                      }, 1000)
+                    } else {
+                      setErrorMessage(result.error?.message || 'No se pudo actualizar el grupo.')
+                      setSubmitting(false)
+                    }
+                  } catch (err) {
+                    console.error('Error al actualizar grupo:', err)
+                    setErrorMessage('No se pudo actualizar el grupo.')
+                    setSubmitting(false)
+                  }
+                }
+              }}
               options={[
                 { value: '', label: 'Sin grupo' },
                 ...allGroups.map((group) => ({
@@ -747,6 +796,7 @@ export default function AdminStudents() {
                   label: `${group.nomenclature} - ${group.grade}° ${group.specialty}${group.section ? ` (${group.section})` : ''}`,
                 })),
               ]}
+              disabled={submitting}
             />
           </FormField>
 
@@ -756,7 +806,46 @@ export default function AdminStudents() {
                 type="checkbox"
                 id="is_group_leader"
                 checked={isGroupLeader}
-                onChange={(e) => setIsGroupLeader(e.target.checked)}
+                onChange={async (e) => {
+                  const newIsGroupLeader = e.target.checked
+                  setIsGroupLeader(newIsGroupLeader)
+                  
+                  // Actualizar inmediatamente en la base de datos
+                  if (selectedStudentId && selectedGroupId) {
+                    try {
+                      setSubmitting(true)
+                      setErrorMessage(null)
+                      const result = await updateStudentGroup(
+                        selectedStudentId,
+                        selectedGroupId,
+                        newIsGroupLeader
+                      )
+                      if (result.success) {
+                        setSuccessMessage('Rol de jefe de grupo actualizado correctamente.')
+                        // Refrescar detalles después de un momento
+                        setTimeout(async () => {
+                          try {
+                            await fetchStudentDetails(selectedStudentId)
+                            setRefreshKey(prev => prev + 1)
+                            setSuccessMessage(null)
+                          } catch (err) {
+                            console.error('Error al refrescar detalles:', err)
+                          } finally {
+                            setSubmitting(false)
+                          }
+                        }, 1000)
+                      } else {
+                        setErrorMessage(result.error?.message || 'No se pudo actualizar el rol.')
+                        setSubmitting(false)
+                      }
+                    } catch (err) {
+                      console.error('Error al actualizar rol:', err)
+                      setErrorMessage('No se pudo actualizar el rol.')
+                      setSubmitting(false)
+                    }
+                  }
+                }}
+                disabled={submitting}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <label htmlFor="is_group_leader" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
@@ -767,20 +856,18 @@ export default function AdminStudents() {
 
           <div className="flex gap-2 pt-2">
             <button
-              onClick={handleSaveGroup}
-              disabled={submitting}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 disabled:opacity-50"
-            >
-              {submitting ? 'Guardando...' : 'Guardar'}
-            </button>
-            <button
               onClick={handleCloseManageGroup}
               disabled={submitting}
               className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50"
             >
-              Cancelar
+              Cerrar
             </button>
           </div>
+          {submitting && (
+            <div className="text-sm text-gray-500 dark:text-gray-400 text-center">
+              Guardando cambios...
+            </div>
+          )}
         </div>
       </Modal>
     </div>

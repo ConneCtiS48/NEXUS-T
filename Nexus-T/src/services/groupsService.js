@@ -183,6 +183,28 @@ export const groupsService = {
    * Actualizar grupo
    */
   async updateGroup(groupId, groupData) {
+    // Primero verificar que el grupo existe
+    const { data: existing, error: checkError } = await supabase
+      .from('groups')
+      .select('id')
+      .eq('id', groupId)
+      .maybeSingle()
+    
+    if (checkError) {
+      return { data: null, error: checkError }
+    }
+    
+    if (!existing) {
+      return { 
+        data: null, 
+        error: { 
+          message: 'El grupo no existe o no tienes permisos para acceder a él.',
+          code: 'NOT_FOUND'
+        } 
+      }
+    }
+    
+    // Realizar la actualización
     const { data, error } = await supabase
       .from('groups')
       .update({
@@ -193,7 +215,19 @@ export const groupsService = {
       })
       .eq('id', groupId)
       .select('id, grade, specialty, section, nomenclature')
-      .single()
+      .maybeSingle()
+    
+    // Si no hay datos pero tampoco hay error, puede ser un problema de permisos
+    if (!data && !error) {
+      return { 
+        data: null, 
+        error: { 
+          message: 'No se pudo actualizar el grupo. Verifica que tengas permisos para modificarlo.',
+          code: 'UPDATE_FAILED'
+        } 
+      }
+    }
+    
     return { data, error }
   },
 
