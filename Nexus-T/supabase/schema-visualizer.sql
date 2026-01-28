@@ -46,7 +46,6 @@ CREATE TABLE public.incidents (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   incident_type_id uuid NOT NULL,
   student_id uuid NOT NULL,
-  teacher_subject_id uuid NOT NULL,
   situation text,
   action text,
   follow_up text,
@@ -54,19 +53,20 @@ CREATE TABLE public.incidents (
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT incidents_pkey PRIMARY KEY (id),
   CONSTRAINT incidents_incident_type_id_fkey FOREIGN KEY (incident_type_id) REFERENCES public.incident_types(id),
-  CONSTRAINT incidents_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.user_profiles(id)
+  CONSTRAINT incidents_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(id)
 );
 CREATE TABLE public.justifications (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   student_id uuid NOT NULL,
-  teacher_subject_id uuid NOT NULL,
+  teacher_id uuid NOT NULL,
   group_id uuid NOT NULL,
   reason text NOT NULL,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT justifications_pkey PRIMARY KEY (id),
-  CONSTRAINT justifications_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.user_profiles(id),
-  CONSTRAINT justifications_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id)
+  CONSTRAINT justifications_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.groups(id),
+  CONSTRAINT justifications_teacher_id_fkey FOREIGN KEY (teacher_id) REFERENCES auth.users(id),
+  CONSTRAINT justifications_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.students(id)
 );
 CREATE TABLE public.roles (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),

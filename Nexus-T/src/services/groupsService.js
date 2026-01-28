@@ -19,7 +19,7 @@ export const groupsService = {
   async fetchById(groupId) {
     const { data, error } = await supabase
       .from('groups')
-      .select('id, grade, specialty, section, nomenclature')
+      .select('id, grade, specialty, section, nomenclature, shift')
       .eq('id', groupId)
       .single()
     return { data, error }

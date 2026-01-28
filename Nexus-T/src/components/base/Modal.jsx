@@ -62,13 +62,16 @@ export default function Modal({
       <div className="fixed inset-0 bg-gray-500 bg-opacity-75 dark:bg-gray-900 dark:bg-opacity-75 transition-opacity" />
 
       {/* Modal container */}
-      <div className="flex min-h-full items-center justify-center p-4">
+      <div className="flex min-h-full items-start justify-center pt-[20vh] pb-8 px-4">
         <div
           className={`
             relative bg-white dark:bg-slate-900 rounded-lg shadow-xl
             ${sizeClasses[size]}
             ${className}
             transform transition-all
+            w-full
+            max-h-[70vh]
+            overflow-y-auto
           `}
           onClick={(e) => e.stopPropagation()}
         >

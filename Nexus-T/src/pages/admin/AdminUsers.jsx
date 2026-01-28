@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { useAdminUsers } from '../../hooks/useAdminUsers'
 import { usersService } from '../../services/usersService'
+import { supabase } from '../../lib/supabase'
 import SimpleTable from '../../components/data/SimpleTable'
 import DetailView from '../../components/data/DetailView'
 import ActionMenu from '../../components/data/ActionMenu'
@@ -50,6 +51,8 @@ export default function AdminUsers() {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
+  const [userSubjects, setUserSubjects] = useState([])
+  const [loadingSubjects, setLoadingSubjects] = useState(false)
 
   // Estados de modales
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -71,14 +74,78 @@ export default function AdminUsers() {
     }
   }, [error])
 
+  // Función para obtener asignaturas del docente
+  const fetchUserSubjects = async (userId) => {
+    setLoadingSubjects(true)
+    setUserSubjects([])
+    
+    try {
+      // Consultar teacher_group_subjects con joins para obtener toda la información
+      const { data, error } = await supabase
+        .from('teacher_group_subjects')
+        .select(
+          `
+            id,
+            shift,
+            subject:subjects!teacher_group_subjects_subject_id_fkey (
+              id,
+              subject_name,
+              category_type,
+              category_name
+            ),
+            group:groups (
+              id,
+              grade,
+              specialty,
+              section,
+              nomenclature
+            )
+          `
+        )
+        .eq('teacher_id', userId)
+        .order('created_at', { ascending: true })
+
+      if (error) {
+        console.error('Error al cargar asignaturas del docente:', error)
+        setUserSubjects([])
+      } else {
+        // Normalizar los datos (los joins pueden devolver arrays)
+        const normalized = (data || []).map((entry) => ({
+          id: entry.id,
+          shift: entry.shift,
+          subject: Array.isArray(entry.subject) ? entry.subject[0] : entry.subject,
+          group: Array.isArray(entry.group) ? entry.group[0] : entry.group,
+        }))
+        setUserSubjects(normalized)
+      }
+    } catch (err) {
+      console.error('Error al cargar asignaturas:', err)
+      setUserSubjects([])
+    } finally {
+      setLoadingSubjects(false)
+    }
+  }
+
   // Cargar detalles cuando se selecciona un usuario
   useEffect(() => {
     if (selectedUserId) {
       fetchUserDetails(selectedUserId)
+      
+      // Verificar si el usuario es docente y cargar asignaturas
+      const user = users.find((u) => u.user_id === selectedUserId)
+      if (user) {
+        const isDocente = user.roles?.some((r) => r.role_name?.toLowerCase() === 'docente')
+        if (isDocente) {
+          fetchUserSubjects(selectedUserId)
+        } else {
+          setUserSubjects([])
+        }
+      }
     } else {
       clearSelection()
+      setUserSubjects([])
     }
-  }, [selectedUserId, fetchUserDetails, clearSelection])
+  }, [selectedUserId, fetchUserDetails, clearSelection, users])
 
   const handleSelect = (id) => {
     const user = users.find((u) => u.id === id)
@@ -426,10 +493,15 @@ export default function AdminUsers() {
     },
   ]
 
+  // Determinar si el usuario es docente
+  const isDocente = selectedUser?.roles?.some((r) => r.role_name?.toLowerCase() === 'docente')
+
   const userTabs = [
     { id: 'overview', label: 'Resumen' },
     { id: 'roles', label: 'Roles', badge: selectedUser?.roles?.length || 0 },
     { id: 'groups', label: 'Grupos', badge: userGroups.length > 0 ? userGroups.length : undefined },
+    // Agregar tab de asignaturas solo si es docente
+    ...(isDocente ? [{ id: 'subjects', label: 'Asignaturas', badge: userSubjects.length > 0 ? userSubjects.length : undefined }] : []),
   ]
 
   return (
@@ -676,6 +748,79 @@ export default function AdminUsers() {
                         </p>
                       )}
                     </div>
+                  </div>
+                )
+              }
+
+              if (tab === 'subjects') {
+                const SHIFT_MAP = {
+                  M: 'Matutino',
+                  V: 'Vespertino',
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {loadingSubjects ? (
+                      <div className="text-center py-8">
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Cargando asignaturas...</p>
+                      </div>
+                    ) : userSubjects.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                          <thead className="bg-gray-50 dark:bg-gray-800">
+                            <tr>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                Asignatura
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                Grupo
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                Turno
+                              </th>
+                              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+                                Categoría
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="bg-white dark:bg-slate-900 divide-y divide-gray-200 dark:divide-gray-700">
+                            {userSubjects.map((item) => (
+                              <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                  {item.subject?.subject_name || 'Sin nombre'}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                  {item.group?.nomenclature || 'Sin grupo'}
+                                  {item.group && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">
+                                      {item.group.grade}° {item.group.specialty}
+                                      {item.group.section && ` • ${item.group.section}`}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                  <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 rounded">
+                                    {SHIFT_MAP[item.shift] || item.shift}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-gray-100">
+                                  {item.subject?.category_name || '-'}
+                                  {item.subject?.category_type && (
+                                    <span className="text-xs text-gray-500 dark:text-gray-400 block">
+                                      {item.subject.category_type}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Este docente no tiene asignaturas asignadas.
+                      </p>
+                    )}
                   </div>
                 )
               }
