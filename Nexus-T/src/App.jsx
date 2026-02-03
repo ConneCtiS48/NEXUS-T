@@ -6,9 +6,9 @@ import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
 import Home from './pages/Home'
-import DocenteLayout from './pages/docente/DocenteLayout'
-import DocenteDashboard from './pages/docente/DocenteDashboard'
-import DocenteGrupo from './pages/docente/DocenteGrupo'
+import DocenteLayout from './pages/DocenteLayout'
+import Docente from './pages/Docente'
+import DocenteGrupo from './pages/DocenteGrupo'
 import Orientacion from './pages/orientador/Orientacion'
 import Tutor from './pages/tutor/Tutor'
 import AdminLayout from './pages/admin/AdminLayout'
@@ -70,7 +70,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<DocenteDashboard />} />
+        <Route index element={<Docente />} />
         <Route path="grupos" element={<DocenteGrupo />} />
       </Route>
       <Route

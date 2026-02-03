@@ -17,7 +17,7 @@ const INITIAL_JUSTIFICATION_FORM = {
   reason: '',
 }
 
-export default function Justificantes({ setErrorMessage, readOnly = false }) {
+export default function Justificantes({ setErrorMessage, readOnly = false, groupIdsFilter = null, studentIdsFilter = null }) {
   const { user } = useAuth()
   const [justifications, setJustifications] = useState([])
   const [loading, setLoading] = useState(false)
@@ -54,6 +54,11 @@ export default function Justificantes({ setErrorMessage, readOnly = false }) {
         if (!value) return '-'
         return `${value.first_name || ''} ${value.paternal_last_name || ''} ${value.maternal_last_name || ''}`.trim() || '-'
       },
+    },
+    {
+      key: 'student',
+      label: 'No. Control',
+      render: (value) => (value?.control_number ?? '-'),
     },
     {
       key: 'group',
@@ -287,8 +292,15 @@ export default function Justificantes({ setErrorMessage, readOnly = false }) {
     }
   }
 
+  let displayedJustifications = justifications
+  if (Array.isArray(studentIdsFilter) && studentIdsFilter.length > 0) {
+    displayedJustifications = displayedJustifications.filter((j) => j.student_id && studentIdsFilter.includes(j.student_id))
+  } else if (Array.isArray(groupIdsFilter) && groupIdsFilter.length > 0) {
+    displayedJustifications = displayedJustifications.filter((j) => j.group_id && groupIdsFilter.includes(j.group_id))
+  }
+
   const handleSelectJustification = (id) => {
-    const justification = justifications.find((j) => j.id === id)
+    const justification = displayedJustifications.find((j) => j.id === id)
     if (justification) {
       setSelectedJustificationId(id)
       setSelectedJustification(justification)
@@ -355,6 +367,7 @@ export default function Justificantes({ setErrorMessage, readOnly = false }) {
           group_id: justificationForm.groupId,
           teacher_id: teacherId,
           reason: justificationForm.reason.trim(),
+          created_by: user?.id ?? null,
         })
         .select()
         .single()
@@ -512,7 +525,7 @@ export default function Justificantes({ setErrorMessage, readOnly = false }) {
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
             <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 dark:text-white">
-              Justificantes ({justifications.length})
+              Justificantes ({displayedJustifications.length})
             </h2>
             <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400">
               Gestión de justificantes del sistema
@@ -548,10 +561,16 @@ export default function Justificantes({ setErrorMessage, readOnly = false }) {
           <div className="text-center py-8">
             <p className="text-gray-500 dark:text-gray-400">Cargando justificantes...</p>
           </div>
+        ) : displayedJustifications.length === 0 ? (
+          <div className="text-center py-8 px-4 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+            <p className="text-gray-600 dark:text-gray-400">
+              {readOnly ? 'Su grupo no tiene justificantes.' : 'No hay justificantes.'}
+            </p>
+          </div>
         ) : (
           <SimpleTable
             columns={justificationTableColumns}
-            data={justifications}
+            data={displayedJustifications}
             selectedId={selectedJustificationId}
             onSelect={handleSelectJustification}
             loading={false}

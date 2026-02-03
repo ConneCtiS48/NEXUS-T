@@ -67,6 +67,11 @@ export default function OrientacionIncidentes({ setErrorMessage }) {
       },
     },
     {
+      key: 'student',
+      label: 'No. Control',
+      render: (value) => value?.control_number ?? '-',
+    },
+    {
       key: 'situation',
       label: 'Situación',
       render: (value) => value ? (value.length > 50 ? `${value.substring(0, 50)}...` : value) : '-',
@@ -320,7 +325,27 @@ export default function OrientacionIncidentes({ setErrorMessage }) {
     setSuccessMessage(null)
 
     try {
-      // Crear el incidente
+      // Obtener group_id del alumno para el incidente
+      let groupId = null
+      let teacherIdTutor = null
+      const { data: memberRow } = await supabase
+        .from('group_members')
+        .select('group_id')
+        .eq('student_id', incidentForm.studentId)
+        .limit(1)
+        .maybeSingle()
+      if (memberRow?.group_id) {
+        groupId = memberRow.group_id
+        const { data: tutorRow } = await supabase
+          .from('teacher_groups')
+          .select('teacher_id')
+          .eq('group_id', groupId)
+          .eq('is_tutor', true)
+          .maybeSingle()
+        if (tutorRow?.teacher_id) teacherIdTutor = tutorRow.teacher_id
+      }
+
+      // Crear el incidente (created_by, group_id y teacher_id para consultas y visibilidad)
       const { data: newIncident, error: incidentError } = await supabase
         .from('incidents')
         .insert({
@@ -329,6 +354,9 @@ export default function OrientacionIncidentes({ setErrorMessage }) {
           situation: incidentForm.situation || null,
           action: incidentForm.action || null,
           follow_up: incidentForm.follow_up || null,
+          created_by: user?.id ?? null,
+          teacher_id: teacherIdTutor ?? null,
+          group_id: groupId ?? null,
         })
         .select()
         .single()
@@ -603,16 +631,41 @@ export default function OrientacionIncidentes({ setErrorMessage }) {
     setSuccessMessage(null)
 
     try {
-      // Actualizar el incidente
+      const studentId = selectedIncident?.student_id ?? incidentForm.studentId
+      let groupId = null
+      let teacherIdTutor = null
+      if (studentId) {
+        const { data: memberRow } = await supabase
+          .from('group_members')
+          .select('group_id')
+          .eq('student_id', studentId)
+          .limit(1)
+          .maybeSingle()
+        if (memberRow?.group_id) {
+          groupId = memberRow.group_id
+          const { data: tutorRow } = await supabase
+            .from('teacher_groups')
+            .select('teacher_id')
+            .eq('group_id', groupId)
+            .eq('is_tutor', true)
+            .maybeSingle()
+          if (tutorRow?.teacher_id) teacherIdTutor = tutorRow.teacher_id
+        }
+      }
+
+      const updatePayload = {
+        incident_type_id: incidentForm.incidentTypeId,
+        situation: incidentForm.situation || null,
+        action: incidentForm.action || null,
+        follow_up: incidentForm.follow_up || null,
+        updated_at: new Date().toISOString(),
+      }
+      if (groupId != null) updatePayload.group_id = groupId
+      if (teacherIdTutor != null) updatePayload.teacher_id = teacherIdTutor
+
       const { error: updateError } = await supabase
         .from('incidents')
-        .update({
-          incident_type_id: incidentForm.incidentTypeId,
-          situation: incidentForm.situation || null,
-          action: incidentForm.action || null,
-          follow_up: incidentForm.follow_up || null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq('id', selectedIncidentId)
 
       if (updateError) {

@@ -1,11 +1,10 @@
 import { Outlet } from 'react-router-dom'
-import RoleNavigation from '../../components/RoleNavigation'
-import SubPageMenu from '../../components/layout/SubPageMenu'
+import RoleNavigation from '../components/RoleNavigation'
+import SubPageMenu from '../components/layout/SubPageMenu'
 
 export default function DocenteLayout() {
   const docenteMenuItems = [
-    { path: '/docente', label: 'Dashboard', icon: '📊' },
-    { path: '/docente/grupos', label: 'Mis Grupos', icon: '👨‍👩‍👧‍👦' },
+    { path: '/docente', label: 'Inicio', icon: '🏠' },
   ]
 
   return (
@@ -16,8 +15,3 @@ export default function DocenteLayout() {
     </div>
   )
 }
-
-
-
-
-
