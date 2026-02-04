@@ -24,9 +24,6 @@ export default function Orientacion() {
       <RoleNavigation currentRole="orientacion" />
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-6 sm:space-y-8">
         <header className="flex flex-col gap-2">
-          <p className="text-xs sm:text-sm uppercase tracking-wide text-blue-600 dark:text-blue-400 font-semibold">
-            Orientación educativa
-          </p>
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
             Administración de grupos y usuarios
           </h1>
