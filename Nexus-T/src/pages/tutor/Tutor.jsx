@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import RoleNavigation from '../../components/RoleNavigation'
 import DetailView from '../../components/data/DetailView'
 import { groupsService } from '../../services/groupsService'
-import OrientacionIncidentes from '../orientador/OrientacionIncidentes'
+import Incidencias from '../docente/Incidencias'
 import Justificantes from '../justificantes/Justificantes'
 
 export default function Tutor() {
@@ -476,7 +476,7 @@ export default function Tutor() {
 
             {/* Tab: Incidencias */}
             {activeTab === 'incidencias' && (
-              <OrientacionIncidentes setErrorMessage={setErrorMessage} />
+              <Incidencias setErrorMessage={setErrorMessage} />
             )}
           </div>
         </div>

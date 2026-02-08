@@ -1,25 +1,59 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { config } from '../lib/config'
+
+function parseHashParams() {
+  const hash = window.location.hash?.slice(1) || ''
+  const params = Object.fromEntries(new URLSearchParams(hash))
+  return params
+}
 
 export default function SignIn() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [emailNotConfirmed, setEmailNotConfirmed] = useState(false)
+  const [linkExpiredFromHash, setLinkExpiredFromHash] = useState(false)
   const [loading, setLoading] = useState(false)
   const { signIn } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  useEffect(() => {
+    const params = parseHashParams()
+    const code = params.error_code || ''
+    const desc = (params.error_description || '').toLowerCase()
+    const isExpiredOrInvalid =
+      code === 'otp_expired' ||
+      desc.includes('expired') ||
+      desc.includes('invalid')
+    if (params.error && isExpiredOrInvalid) {
+      setLinkExpiredFromHash(true)
+      window.history.replaceState(null, '', location.pathname + location.search)
+    }
+  }, [location.pathname, location.search])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setEmailNotConfirmed(false)
     setLoading(true)
 
     const { error } = await signIn(email, password)
 
     if (error) {
-      setError(error.message)
+      const msg = error.message || ''
+      const isEmailNotConfirmed =
+        msg.toLowerCase().includes('confirm') || msg.toLowerCase().includes('verified')
+      if (isEmailNotConfirmed) {
+        setError(
+          'Tu correo no está confirmado. Revisa tu bandeja o solicita un nuevo correo de confirmación.'
+        )
+        setEmailNotConfirmed(true)
+      } else {
+        setError(msg)
+      }
       setLoading(false)
     } else {
       navigate('/home')
@@ -33,9 +67,34 @@ export default function SignIn() {
           Iniciar Sesión
         </h2>
 
+        {linkExpiredFromHash && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-400 text-amber-800 rounded dark:bg-amber-900/30 dark:border-amber-600 dark:text-amber-200 text-sm">
+            <p>El enlace de confirmación ha expirado o no es válido. Puedes solicitar un nuevo correo.</p>
+            <p className="mt-2">
+              <Link
+                to="/resend-confirmation"
+                className="text-blue-600 hover:text-blue-700 font-medium underline dark:text-blue-400"
+              >
+                Reenviar correo de confirmación
+              </Link>
+            </p>
+          </div>
+        )}
+
         {error && (
           <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded dark:bg-red-900 dark:text-red-200 text-sm">
-            {error}
+            <p>{error}</p>
+            {emailNotConfirmed && (
+              <p className="mt-2">
+                <Link
+                  to="/resend-confirmation"
+                  state={{ email }}
+                  className="text-blue-600 hover:text-blue-700 font-medium underline dark:text-blue-400"
+                >
+                  Reenviar correo de confirmación
+                </Link>
+              </p>
+            )}
           </div>
         )}
 
@@ -76,6 +135,15 @@ export default function SignIn() {
             />
           </div>
 
+          <p className="text-center text-sm">
+            <Link
+              to="/forgot-password"
+              className="text-blue-600 hover:text-blue-700 font-medium dark:text-blue-400"
+            >
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </p>
+
           <button
             type="submit"
             disabled={loading}
@@ -96,6 +164,17 @@ export default function SignIn() {
             </Link>
           </p>
         )}
+
+        <p className="mt-3 text-center text-sm text-gray-600 dark:text-gray-400">
+          ¿No recibiste el correo de confirmación?{' '}
+          <Link
+            to="/resend-confirmation"
+            state={email ? { email } : undefined}
+            className="text-blue-600 hover:text-blue-700 font-medium dark:text-blue-400"
+          >
+            Reenviar correo
+          </Link>
+        </p>
 
         <p className="mt-4 text-center">
           <Link

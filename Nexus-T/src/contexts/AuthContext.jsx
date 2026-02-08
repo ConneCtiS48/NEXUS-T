@@ -58,6 +58,32 @@ export const AuthProvider = ({ children }) => {
     return { error }
   }
 
+  const getRedirectOrigin = () =>
+    (typeof window !== 'undefined' && window.location.origin) || ''
+
+  const resetPasswordForEmail = async (email) => {
+    const origin = getRedirectOrigin()
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${origin}/update-password`,
+    })
+    return { data, error }
+  }
+
+  const resendConfirmationEmail = async (email) => {
+    const origin = getRedirectOrigin()
+    const { error } = await supabase.auth.resend({
+      type: 'signup',
+      email,
+      options: { emailRedirectTo: `${origin}/signin` },
+    })
+    return { error }
+  }
+
+  const updatePassword = async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    return { error }
+  }
+
   const value = {
     user,
     session,
@@ -65,6 +91,9 @@ export const AuthProvider = ({ children }) => {
     signUp,
     signIn,
     signOut,
+    resetPasswordForEmail,
+    resendConfirmationEmail,
+    updatePassword,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

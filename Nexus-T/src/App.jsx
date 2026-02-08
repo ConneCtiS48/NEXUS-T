@@ -5,6 +5,9 @@ import { config } from './lib/config'
 import Landing from './pages/Landing'
 import SignIn from './pages/SignIn'
 import SignUp from './pages/SignUp'
+import ForgotPassword from './pages/ForgotPassword'
+import UpdatePassword from './pages/UpdatePassword'
+import ResendConfirmation from './pages/ResendConfirmation'
 import Home from './pages/Home'
 import DocenteLayout from './pages/DocenteLayout'
 import Docente from './pages/Docente'
@@ -53,6 +56,18 @@ function AppRoutes() {
             <Navigate to="/signin" replace />
           )
         }
+      />
+      <Route
+        path="/forgot-password"
+        element={user ? <Navigate to="/home" replace /> : <ForgotPassword />}
+      />
+      <Route
+        path="/update-password"
+        element={<UpdatePassword />}
+      />
+      <Route
+        path="/resend-confirmation"
+        element={user ? <Navigate to="/home" replace /> : <ResendConfirmation />}
       />
       <Route
         path="/home"
