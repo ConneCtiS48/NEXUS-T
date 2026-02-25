@@ -1,12 +1,13 @@
 import { Link } from 'react-router-dom'
 import { config } from '../lib/config'
+import logoImg from '../assets/img/logo.png'
 
 export default function Landing() {
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 px-4 py-8">
       <div className="max-w-4xl w-full mx-auto p-4 sm:p-8 text-center">
         <img 
-          src="/src/assets/img/logo.jpeg" 
+          src={logoImg} 
           alt="Nexus-T Logo" 
           className="mx-auto mb-6 w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 object-contain" 
         />
