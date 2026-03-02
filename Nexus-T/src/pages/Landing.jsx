@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { config } from '../lib/config'
-import logoImg from '../assets/img/Logo.jpeg'
+import logoImg from '../assets/img/logo.png'
 
 export default function Landing() {
   return (
