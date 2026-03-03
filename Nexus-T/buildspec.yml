@@ -6,11 +6,13 @@ phases:
       nodejs: 22
   pre_build:
     commands:
+      - cd Nexus-T
       - npm install
   build:
     commands:
+      - cd Nexus-T
       - npm run build
-artifacts: 
-  base-directory: dist/
+artifacts:
+  base-directory: Nexus-T/dist
   files:
     - '**/*'
